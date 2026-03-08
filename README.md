@@ -228,7 +228,7 @@ We're building the future of financial analysis—together.
 
 **Contribute:** New data connectors • AI agents • Analytics modules • Documentation • Translations
 
-[Contributing Guide](docs/CONTRIBUTING.md) • [Report Bug](https://github.com/Fincept-Corporation/FinceptTerminal/issues) • [Request Feature](https://github.com/Fincept-Corporation/FinceptTerminal/discussions)
+[Contributing Guide](docs/CONTRIBUTING.md) • [Adding Features (data sources, widgets, tabs)](docs/development/ADDING_FEATURES.md) • [Report Bug](https://github.com/Fincept-Corporation/FinceptTerminal/issues) • [Request Feature](https://github.com/Fincept-Corporation/FinceptTerminal/discussions)
 
 ---
 
