@@ -24,15 +24,15 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      // Frontend app source (until Phase 0: move to apps/web/src/app and remove desktop)
-      "@": path.resolve(__dirname, "../../fincept-terminal-desktop/src"),
-      "net": path.resolve(__dirname, "../../fincept-terminal-desktop/src/polyfills/net-shim.ts"),
-      "node:net": path.resolve(__dirname, "../../fincept-terminal-desktop/src/polyfills/net-shim.ts"),
-      "assert": path.resolve(__dirname, "../../fincept-terminal-desktop/src/polyfills/assert-shim.ts"),
-      "node:assert": path.resolve(__dirname, "../../fincept-terminal-desktop/src/polyfills/assert-shim.ts"),
-      "vm": path.resolve(__dirname, "../../fincept-terminal-desktop/src/polyfills/vm-shim.ts"),
-      "node:vm": path.resolve(__dirname, "../../fincept-terminal-desktop/src/polyfills/vm-shim.ts"),
-      "ws": path.resolve(__dirname, "../../fincept-terminal-desktop/src/polyfills/ws-shim.ts"),
+      // Frontend app source (self-contained under apps/web/src/app)
+      "@": path.resolve(__dirname, "./src/app"),
+      "net": path.resolve(__dirname, "./src/app/polyfills/net-shim.ts"),
+      "node:net": path.resolve(__dirname, "./src/app/polyfills/net-shim.ts"),
+      "assert": path.resolve(__dirname, "./src/app/polyfills/assert-shim.ts"),
+      "node:assert": path.resolve(__dirname, "./src/app/polyfills/assert-shim.ts"),
+      "vm": path.resolve(__dirname, "./src/app/polyfills/vm-shim.ts"),
+      "node:vm": path.resolve(__dirname, "./src/app/polyfills/vm-shim.ts"),
+      "ws": path.resolve(__dirname, "./src/app/polyfills/ws-shim.ts"),
       // Tauri shims (web: no Rust, bridge to FastAPI)
       "@tauri-apps/api/core": path.resolve(__dirname, "./src/shims/tauri-core.ts"),
       "@tauri-apps/api/event": path.resolve(__dirname, "./src/shims/tauri-event.ts"),

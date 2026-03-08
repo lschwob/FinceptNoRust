@@ -17,8 +17,8 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["../../fincept-terminal-desktop/src/*"]
+      "@/*": ["src/app/*"]
     }
   },
-  "include": ["src", "../../fincept-terminal-desktop/src"]
+  "include": ["src"]
 }
