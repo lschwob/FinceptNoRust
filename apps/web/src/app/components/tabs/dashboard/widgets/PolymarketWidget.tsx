@@ -2,14 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { BaseWidget } from './BaseWidget';
 import { PolymarketMarket } from '@/services/polymarket/polymarketService';
+import polymarketApiService from '@/services/polymarket/polymarketApiService';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
 
 interface PolymarketWidgetProps {
   id: string;
   limit?: number;
   onRemove?: () => void;
   onNavigate?: () => void;
+}
+
+/** Gamma API can return outcome_prices (snake) or outcomePrices (camel). */
+function getOutcomePrices(m: PolymarketMarket & { outcome_prices?: string[] }): string[] {
+  return m.outcomePrices ?? m.outcome_prices ?? [];
 }
 
 export const PolymarketWidget: React.FC<PolymarketWidgetProps> = ({
@@ -28,12 +33,13 @@ export const PolymarketWidget: React.FC<PolymarketWidgetProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const raw = await invoke<string>('fetch_polymarket_markets', { limit });
-      const result = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      console.log('[PolymarketWidget] result:', result);
-      if (!result.success) throw new Error(result.error || 'Failed to load');
-      const data: PolymarketMarket[] = Array.isArray(result.data) ? result.data : [];
-      if (mountedRef.current) setMarkets(data);
+      const data = await polymarketApiService.getMarkets({
+        limit,
+        active: true,
+        order: 'volume',
+        ascending: false,
+      });
+      if (mountedRef.current) setMarkets(Array.isArray(data) ? data : []);
     } catch (e: any) {
       console.error('[PolymarketWidget] Error:', e);
       if (mountedRef.current) setError(String(e?.message || 'Failed to load'));
@@ -74,14 +80,14 @@ export const PolymarketWidget: React.FC<PolymarketWidgetProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', gap: '12px' }}>
                 <span style={{ fontSize: 'var(--ft-font-size-small)', color: 'var(--ft-color-success)' }}>
-                  YES: {((parseFloat(market.outcomePrices?.[0] || '0')) * 100).toFixed(0)}%
+                  YES: {((parseFloat(getOutcomePrices(market)[0] || '0')) * 100).toFixed(0)}%
                 </span>
                 <span style={{ fontSize: 'var(--ft-font-size-small)', color: 'var(--ft-color-alert)' }}>
-                  NO: {((parseFloat(market.outcomePrices?.[1] || '0')) * 100).toFixed(0)}%
+                  NO: {((parseFloat(getOutcomePrices(market)[1] || '0')) * 100).toFixed(0)}%
                 </span>
               </div>
               <span style={{ fontSize: 'var(--ft-font-size-tiny)', color: 'var(--ft-color-text-muted)' }}>
-                Vol: {formatVolume(market.volume)}
+                Vol: {formatVolume(String(market.volume ?? (market as { volumeNum?: number }).volumeNum ?? ''))}
               </span>
             </div>
           </div>
