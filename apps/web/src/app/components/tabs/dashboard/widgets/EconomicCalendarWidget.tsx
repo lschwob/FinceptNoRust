@@ -1,13 +1,14 @@
-// EconomicCalendarWidget - Economic Calendar from Backend API
+// EconomicCalendarWidget - Economic Calendar via backend proxy (avoids CORS)
 // Displays upcoming economic events and releases
 
 import React, { useMemo } from 'react';
-import { Calendar, TrendingUp, TrendingDown } from 'lucide-react';
 import { BaseWidget } from './BaseWidget';
 import { useTranslation } from 'react-i18next';
 import { useCache } from '@/hooks/useCache';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetch } from '@tauri-apps/plugin-http';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+const CALENDAR_PROXY = `${API_BASE}/api/v1/proxy/economic-calendar`;
 
 const FC = {
   ORANGE: '#FF8800',
@@ -76,12 +77,11 @@ export const EconomicCalendarWidget: React.FC<EconomicCalendarWidgetProps> = ({
     fetcher: async () => {
       const apiKey = session?.api_key;
       if (!apiKey) {
-        throw new Error('Login required to view economic calendar');
+        return [];
       }
 
-      // Call backend API via Tauri with API key
       const response = await fetch(
-        `https://api.fincept.in/macro/economic-calendar?country=${country}&limit=${limit}`,
+        `${CALENDAR_PROXY}?country=${encodeURIComponent(country)}&limit=${limit}`,
         {
           method: 'GET',
           headers: {
@@ -93,23 +93,12 @@ export const EconomicCalendarWidget: React.FC<EconomicCalendarWidgetProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMsg = errorData.message || errorData.error || `API error: ${response.status}`;
+        const errorMsg = errorData.detail ?? errorData.message ?? errorData.error ?? `API error: ${response.status}`;
         throw new Error(errorMsg);
       }
 
       const data = await response.json();
-
-      console.log('[EconomicCalendarWidget] API response:', data);
-
-      // Check if response is successful
-      if (!data.success) {
-        throw new Error(data.message || data.error || 'Failed to load calendar');
-      }
-
-      // Extract events array from response
-      const eventsList = data.data?.events || [];
-
-      console.log('[EconomicCalendarWidget] Parsed events:', eventsList);
+      const eventsList = data.data?.events ?? data.events ?? (Array.isArray(data) ? data : []);
       return eventsList;
     }
   });
@@ -255,7 +244,7 @@ export const EconomicCalendarWidget: React.FC<EconomicCalendarWidgetProps> = ({
             color: FC.MUTED,
             fontSize: '9px',
           }}>
-            No upcoming events
+            {session?.api_key ? 'No upcoming events' : 'Log in to view economic calendar'}
           </div>
         )}
       </div>

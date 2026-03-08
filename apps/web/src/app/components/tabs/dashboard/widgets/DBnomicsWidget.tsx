@@ -3,7 +3,8 @@ import { ExternalLink } from 'lucide-react';
 import { BaseWidget } from './BaseWidget';
 import { useCache } from '@/hooks/useCache';
 
-const DBNOMICS_API_BASE = 'https://api.db.nomics.world/v22';
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+const DBNOMICS_PROXY_BASE = `${API_BASE}/api/v1/proxy/dbnomics`;
 
 interface DBnomicsWidgetProps {
   id: string;
@@ -39,7 +40,7 @@ export const DBnomicsWidget: React.FC<DBnomicsWidgetProps> = ({
       const [provider, datasetCode, seriesCode] = parts;
 
       const response = await fetch(
-        `${DBNOMICS_API_BASE}/series/${encodeURIComponent(provider)}/${encodeURIComponent(datasetCode)}/${encodeURIComponent(seriesCode)}?observations=1&format=json`,
+        `${DBNOMICS_PROXY_BASE}/series/${encodeURIComponent(provider)}/${encodeURIComponent(datasetCode)}/${encodeURIComponent(seriesCode)}?observations=1&format=json`,
       );
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
