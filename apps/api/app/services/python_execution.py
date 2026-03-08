@@ -44,8 +44,9 @@ class PythonExecutionService:
         args = args or []
         env = env or {}
         candidate = self.resolve_script_path(script_path)
-        command = ["python3", str(candidate), *args]
+        command = ["python3", "-u", str(candidate), *args]
         run_env = os.environ.copy()
+        run_env["PYTHONUNBUFFERED"] = "1"
         for k, v in env.items():
             run_env[str(k)] = str(v)
         completed = subprocess.run(

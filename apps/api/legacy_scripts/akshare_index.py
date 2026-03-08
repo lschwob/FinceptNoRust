@@ -591,7 +591,8 @@ def main():
         result = {"success": False, "error": f"Unknown endpoint: {endpoint}", "data": []}
 
     result["timestamp"] = int(time.time())
-    print(json.dumps(result, ensure_ascii=False, default=str))
+    out = json.dumps(result, ensure_ascii=False, default=str)
+    print(out, flush=True)
 
 
 if __name__ == "__main__":

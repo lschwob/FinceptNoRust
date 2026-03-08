@@ -466,7 +466,8 @@ if __name__ == "__main__":
             result = wrapper.get_all_endpoints()
         else:
             result = {"success": False, "error": "Endpoint list not available"}
-        print(json.dumps(result, ensure_ascii=True))
+        out = json.dumps(result, ensure_ascii=True)
+        print(out, flush=True)
         sys.exit(0)
 
     # Dynamic method resolution

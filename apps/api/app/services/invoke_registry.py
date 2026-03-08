@@ -162,7 +162,14 @@ def _akshare_get_endpoints(args: dict[str, Any]) -> dict[str, Any]:
         return {"success": False, "error": err_msg, "data": {"available_endpoints": [], "categories": {}}}
     except Exception as e:
         return {"success": False, "error": str(e), "data": {"available_endpoints": [], "categories": {}}}
-    # Legacy script can return { data: { available_endpoints, categories } } or flat { available_endpoints, categories? }
+    # Empty stdout fallback from execute_json (script ran but printed nothing, e.g. buffering or import error)
+    if isinstance(raw, dict) and raw.get("status") == "ok" and "data" not in raw and "available_endpoints" not in raw:
+        return {
+            "success": False,
+            "error": "Script produced no output. Install akshare in the API env: pip install akshare pandas",
+            "data": {"available_endpoints": [], "categories": {}},
+        }
+    # Legacy script returns { success, data: { available_endpoints, categories } } or flat { available_endpoints, categories? }
     if isinstance(raw, dict):
         inner = raw.get("data", raw)
         if not isinstance(inner, dict):
