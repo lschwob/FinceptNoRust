@@ -10,14 +10,16 @@ import IRSPricerPanel from './panels/IRSPricerPanel';
 import BondPricerPanel from './panels/BondPricerPanel';
 import SwapPaperTradingPanel from './panels/SwapPaperTradingPanel';
 import RatesBacktestPanel from './panels/RatesBacktestPanel';
+import RiskProjectionPanel from './panels/RiskProjectionPanel';
 
-type SubTab = 'market' | 'irs' | 'bond' | 'paper' | 'backtest';
+type SubTab = 'market' | 'irs' | 'bond' | 'paper' | 'backtest' | 'risk';
 const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'market', label: 'Market Data' },
   { id: 'irs', label: 'IRS Pricer' },
   { id: 'bond', label: 'Bond Pricer' },
   { id: 'paper', label: 'Paper Trading' },
   { id: 'backtest', label: 'Backtest' },
+  { id: 'risk', label: 'Risk Projection' },
 ];
 
 const SNAPSHOT_TTL = 5 * 60 * 1000; // 5 min
@@ -205,6 +207,7 @@ const SwapTab: React.FC = () => {
       {activeSubTab === 'bond' && <BondPricerPanel />}
       {activeSubTab === 'paper' && <SwapPaperTradingPanel />}
       {activeSubTab === 'backtest' && <RatesBacktestPanel />}
+      {activeSubTab === 'risk' && <RiskProjectionPanel />}
 
       {activeSubTab === 'market' && snapshot && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 0 }}>

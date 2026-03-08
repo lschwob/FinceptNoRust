@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.rates_ird import ecb_sdw, pricing, rates_backtest, swap_paper
+from app.domains.rates_ird import ecb_sdw, pricing, rates_backtest, risk_projection, swap_paper
 from app.domains.rates_ird.dtcc_sdr import get_dtcc_static_fallback
 from app.domains.rates_ird.swap_market_data_loader import (
     is_snapshot_empty,
@@ -231,4 +231,6 @@ def get_rates_ird_handlers() -> dict[str, Any]:
         "swap_pt_get_risk": swap_paper.swap_pt_get_risk,
         "backtest_rates_strategy": rates_backtest.backtest_rates_strategy_handler,
         "get_rates_history": rates_backtest.get_rates_history_handler,
+        "compute_risk_projection": risk_projection.compute_risk_projection_handler,
+        "project_book_pnl": risk_projection.project_book_pnl_handler,
     }

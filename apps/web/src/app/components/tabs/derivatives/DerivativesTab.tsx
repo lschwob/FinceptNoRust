@@ -143,7 +143,7 @@ export function DerivativesTab() {
     setLoading(true);
     setError(null);
     try {
-      const resultStr = await invoke<string>('financepy_bond_price', {
+      const result = await invoke<any>('financepy_bond_price', {
         issueDate: bondParams.issueDate,
         settlementDate: bondParams.settlementDate,
         maturityDate: bondParams.maturityDate,
@@ -151,7 +151,7 @@ export function DerivativesTab() {
         ytm: bondParams.ytm,
         freq: bondParams.freq
       });
-      setResult(JSON.parse(resultStr));
+      setResult(typeof result === 'string' ? JSON.parse(result) : result);
     } catch (e: any) {
       setError(e.toString());
     } finally {
@@ -163,7 +163,7 @@ export function DerivativesTab() {
     setLoading(true);
     setError(null);
     try {
-      const resultStr = await invoke<string>('financepy_bond_ytm', {
+      const result = await invoke<any>('financepy_bond_ytm', {
         issueDate: bondParams.issueDate,
         settlementDate: bondParams.settlementDate,
         maturityDate: bondParams.maturityDate,
@@ -171,7 +171,7 @@ export function DerivativesTab() {
         cleanPrice: bondParams.cleanPrice,
         freq: bondParams.freq
       });
-      setResult(JSON.parse(resultStr));
+      setResult(typeof result === 'string' ? JSON.parse(result) : result);
     } catch (e: any) {
       setError(e.toString());
     } finally {
@@ -183,7 +183,7 @@ export function DerivativesTab() {
     setLoading(true);
     setError(null);
     try {
-      const resultStr = await invoke<string>('financepy_equity_option_price', {
+      const result = await invoke<any>('financepy_equity_option_price', {
         valuationDate: optionParams.valuationDate,
         expiryDate: optionParams.expiryDate,
         strike: optionParams.strike,
@@ -193,7 +193,7 @@ export function DerivativesTab() {
         dividendYield: optionParams.dividendYield,
         optionType: optionParams.optionType
       });
-      setResult(JSON.parse(resultStr));
+      setResult(typeof result === 'string' ? JSON.parse(result) : result);
     } catch (e: any) {
       setError(e.toString());
     } finally {
@@ -205,7 +205,7 @@ export function DerivativesTab() {
     setLoading(true);
     setError(null);
     try {
-      const resultStr = await invoke<string>('financepy_equity_option_implied_vol', {
+      const result = await invoke<any>('financepy_equity_option_implied_vol', {
         valuationDate: optionParams.valuationDate,
         expiryDate: optionParams.expiryDate,
         strike: optionParams.strike,
@@ -215,7 +215,7 @@ export function DerivativesTab() {
         dividendYield: optionParams.dividendYield,
         optionType: optionParams.optionType
       });
-      setResult(JSON.parse(resultStr));
+      setResult(typeof result === 'string' ? JSON.parse(result) : result);
     } catch (e: any) {
       setError(e.toString());
     } finally {
@@ -227,7 +227,7 @@ export function DerivativesTab() {
     setLoading(true);
     setError(null);
     try {
-      const resultStr = await invoke<string>('financepy_fx_option_price', {
+      const result = await invoke<any>('financepy_fx_option_price', {
         valuationDate: fxParams.valuationDate,
         expiryDate: fxParams.expiryDate,
         strike: fxParams.strike,
@@ -238,7 +238,7 @@ export function DerivativesTab() {
         optionType: fxParams.optionType,
         notional: fxParams.notional
       });
-      setResult(JSON.parse(resultStr));
+      setResult(typeof result === 'string' ? JSON.parse(result) : result);
     } catch (e: any) {
       setError(e.toString());
     } finally {
@@ -250,7 +250,7 @@ export function DerivativesTab() {
     setLoading(true);
     setError(null);
     try {
-      const resultStr = await invoke<string>('financepy_ibor_swap_price', {
+      const result = await invoke<any>('financepy_ibor_swap_price', {
         effectiveDate: swapParams.effectiveDate,
         maturityDate: swapParams.maturityDate,
         fixedRate: swapParams.fixedRate,
@@ -258,7 +258,7 @@ export function DerivativesTab() {
         notional: swapParams.notional,
         discountRate: swapParams.discountRate
       });
-      setResult(JSON.parse(resultStr));
+      setResult(typeof result === 'string' ? JSON.parse(result) : result);
     } catch (e: any) {
       setError(e.toString());
     } finally {
@@ -270,14 +270,14 @@ export function DerivativesTab() {
     setLoading(true);
     setError(null);
     try {
-      const resultStr = await invoke<string>('financepy_cds_spread', {
+      const result = await invoke<any>('financepy_cds_spread', {
         valuationDate: cdsParams.valuationDate,
         maturityDate: cdsParams.maturityDate,
         recoveryRate: cdsParams.recoveryRate,
         notional: cdsParams.notional,
         spreadBps: cdsParams.spreadBps
       });
-      setResult(JSON.parse(resultStr));
+      setResult(typeof result === 'string' ? JSON.parse(result) : result);
     } catch (e: any) {
       setError(e.toString());
     } finally {
@@ -290,15 +290,15 @@ export function DerivativesTab() {
     setLoading(true); setError(null);
     try {
       const p = vollibParams;
-      let resultStr: string;
+      let result: unknown;
       if (vollibModel === 'black') {
-        resultStr = await invoke<string>('vollib_black_price', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, flag: p.flag });
+        result = await invoke<any>('vollib_black_price', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, flag: p.flag });
       } else if (vollibModel === 'bs') {
-        resultStr = await invoke<string>('vollib_bs_price', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, flag: p.flag });
+        result = await invoke<any>('vollib_bs_price', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, flag: p.flag });
       } else {
-        resultStr = await invoke<string>('vollib_bsm_price', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, q: p.q, flag: p.flag });
+        result = await invoke<any>('vollib_bsm_price', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, q: p.q, flag: p.flag });
       }
-      setResult(JSON.parse(resultStr));
+      setResult(typeof result === 'string' ? JSON.parse(result) : result);
     } catch (e: any) { setError(e.toString()); } finally { setLoading(false); }
   };
 
@@ -306,15 +306,15 @@ export function DerivativesTab() {
     setLoading(true); setError(null);
     try {
       const p = vollibParams;
-      let resultStr: string;
+      let result: unknown;
       if (vollibModel === 'black') {
-        resultStr = await invoke<string>('vollib_black_greeks', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, flag: p.flag });
+        result = await invoke<any>('vollib_black_greeks', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, flag: p.flag });
       } else if (vollibModel === 'bs') {
-        resultStr = await invoke<string>('vollib_bs_greeks', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, flag: p.flag });
+        result = await invoke<any>('vollib_bs_greeks', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, flag: p.flag });
       } else {
-        resultStr = await invoke<string>('vollib_bsm_greeks', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, q: p.q, flag: p.flag });
+        result = await invoke<any>('vollib_bsm_greeks', { s: p.S, k: p.K, t: p.t, r: p.r, sigma: p.sigma, q: p.q, flag: p.flag });
       }
-      const greeks = JSON.parse(resultStr);
+      const greeks = typeof result === 'string' ? JSON.parse(result) : result;
       setResult({ price: null, greeks });
     } catch (e: any) { setError(e.toString()); } finally { setLoading(false); }
   };
@@ -323,15 +323,15 @@ export function DerivativesTab() {
     setLoading(true); setError(null);
     try {
       const p = vollibParams;
-      let resultStr: string;
+      let result: unknown;
       if (vollibModel === 'black') {
-        resultStr = await invoke<string>('vollib_black_iv', { price: p.optionPrice, s: p.S, k: p.K, t: p.t, r: p.r, flag: p.flag });
+        result = await invoke<any>('vollib_black_iv', { price: p.optionPrice, s: p.S, k: p.K, t: p.t, r: p.r, flag: p.flag });
       } else if (vollibModel === 'bs') {
-        resultStr = await invoke<string>('vollib_bs_iv', { price: p.optionPrice, s: p.S, k: p.K, t: p.t, r: p.r, flag: p.flag });
+        result = await invoke<any>('vollib_bs_iv', { price: p.optionPrice, s: p.S, k: p.K, t: p.t, r: p.r, flag: p.flag });
       } else {
-        resultStr = await invoke<string>('vollib_bsm_iv', { price: p.optionPrice, s: p.S, k: p.K, t: p.t, r: p.r, q: p.q, flag: p.flag });
+        result = await invoke<any>('vollib_bsm_iv', { price: p.optionPrice, s: p.S, k: p.K, t: p.t, r: p.r, q: p.q, flag: p.flag });
       }
-      setResult(JSON.parse(resultStr));
+      setResult(typeof result === 'string' ? JSON.parse(result) : result);
     } catch (e: any) { setError(e.toString()); } finally { setLoading(false); }
   };
 

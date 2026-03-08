@@ -36,7 +36,7 @@ except ImportError:
 
 try:
     from akshare_economics_global import GlobalEconomicsWrapper
-except ImportError:
+except (ImportError, SystemExit, Exception):
     GlobalEconomicsWrapper = None
 
 try:

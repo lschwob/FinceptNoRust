@@ -258,3 +258,57 @@ export async function getRatesHistory(args: {
     return null;
   }
 }
+
+// ─── Risk projection ─────────────────────────────────────────────────────
+export interface ComputeRiskProjectionArgs {
+  curve_history: Array<Record<string, string | number>>;
+  pillars: string[];
+  technique: 'pca' | 'ols' | 'ridge' | 'linear_interp';
+}
+
+export interface ComputeRiskProjectionResult {
+  success: boolean;
+  error?: string;
+  projection_matrix?: Record<string, number[]>;
+  pillars?: string[];
+  tenors?: string[];
+  r2_scores?: Record<string, number>;
+  residuals?: Record<string, number[]>;
+  explained_variance?: number[];
+}
+
+export async function computeRiskProjection(args: ComputeRiskProjectionArgs): Promise<ComputeRiskProjectionResult | null> {
+  try {
+    const result = await invoke<ComputeRiskProjectionResult>('compute_risk_projection', args);
+    return result ?? null;
+  } catch (err) {
+    console.error('[swapService] compute_risk_projection failed:', err);
+    return null;
+  }
+}
+
+export interface ProjectBookPnlArgs {
+  by_tenor?: Record<string, number>;
+  book_id?: string;
+  projection_matrix: Record<string, number[]>;
+  pillars: string[];
+  rate_shocks_bps: Record<string, number>;
+}
+
+export interface ProjectBookPnlResult {
+  success: boolean;
+  error?: string;
+  projected_dv01_by_pillar?: Record<string, number>;
+  rate_shocks_bps?: Record<string, number>;
+  pnl?: number;
+}
+
+export async function projectBookPnl(args: ProjectBookPnlArgs): Promise<ProjectBookPnlResult | null> {
+  try {
+    const result = await invoke<ProjectBookPnlResult>('project_book_pnl', args);
+    return result ?? null;
+  } catch (err) {
+    console.error('[swapService] project_book_pnl failed:', err);
+    return null;
+  }
+}
