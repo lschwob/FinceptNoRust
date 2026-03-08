@@ -33,6 +33,9 @@ export default defineConfig({
       "vm": path.resolve(__dirname, "./src/app/polyfills/vm-shim.ts"),
       "node:vm": path.resolve(__dirname, "./src/app/polyfills/vm-shim.ts"),
       "ws": path.resolve(__dirname, "./src/app/polyfills/ws-shim.ts"),
+      // CCXT proxy agents (Node-only; stub in browser)
+      "http-proxy-agent": path.resolve(__dirname, "./src/shims/http-proxy-agent.ts"),
+      "https-proxy-agent": path.resolve(__dirname, "./src/shims/https-proxy-agent.ts"),
       // Tauri shims (web: no Rust, bridge to FastAPI)
       "@tauri-apps/api/core": path.resolve(__dirname, "./src/shims/tauri-core.ts"),
       "@tauri-apps/api/event": path.resolve(__dirname, "./src/shims/tauri-event.ts"),
