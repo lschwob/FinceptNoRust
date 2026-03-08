@@ -127,6 +127,61 @@ def _execute_python_script(args: dict[str, Any]) -> Any:
     )
 
 
+def _akshare_get_endpoints(args: dict[str, Any]) -> dict[str, Any]:
+    """List available endpoints for an AKShare script. Frontend expects { success, data: { available_endpoints, categories? } }."""
+    script = args.get("script")
+    if not script:
+        raise ApiError(
+            code="missing_argument",
+            message="Missing argument 'script' for command 'akshare_get_endpoints'.",
+            details={"command": "akshare_get_endpoints"},
+            status_code=422,
+        )
+    try:
+        raw = python_execution_service.execute_json(
+            script_path=script,
+            args=["get_all_endpoints"],
+        )
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "data": {"available_endpoints": [], "categories": {}},
+        }
+    # Normalize: script may return { available_endpoints, total_count, categories? } or { error, available_endpoints? }
+    if isinstance(raw, dict):
+        endpoints = raw.get("available_endpoints") or raw.get("endpoints") or []
+        return {
+            "success": True,
+            "data": {
+                "available_endpoints": endpoints if isinstance(endpoints, list) else [],
+                "categories": raw.get("categories") or {},
+            },
+        }
+    return {"success": True, "data": {"available_endpoints": [], "categories": {}}}
+
+
+def _akshare_query(args: dict[str, Any]) -> Any:
+    """Run an AKShare endpoint. Frontend expects { success?, data?, count?, ... }."""
+    script = args.get("script")
+    endpoint = args.get("endpoint")
+    if not script or not endpoint:
+        raise ApiError(
+            code="missing_argument",
+            message="Missing argument 'script' or 'endpoint' for command 'akshare_query'.",
+            details={"command": "akshare_query"},
+            status_code=422,
+        )
+    query_args = args.get("args")
+    if not isinstance(query_args, list):
+        query_args = []
+    script_args = [endpoint] + [str(a) for a in query_args]
+    return python_execution_service.execute_json(
+        script_path=script,
+        args=script_args,
+    )
+
+
 def _default_not_implemented(command: str, args: dict[str, Any]) -> dict[str, Any]:
     return {
         "status": "not_implemented_yet",
@@ -151,6 +206,8 @@ _BASE_HANDLERS: dict[str, Handler] = {
     "db_delete_credential": _db_delete_credential,
     "execute_python_script": _execute_python_script,
     "execute_python_command": _execute_python_script,  # alias used by frontend nodes
+    "akshare_get_endpoints": _akshare_get_endpoints,
+    "akshare_query": _akshare_query,
 }
 
 from app.domains import get_all_handlers
