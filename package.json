@@ -1,0 +1,23 @@
+{
+  "name": "fincept-terminal-monorepo",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "dev:web": "pnpm --filter @fincept/web dev",
+    "dev:api": "uvicorn app.main:app --reload --app-dir apps/api --host 0.0.0.0 --port 8000",
+    "dev": "pnpm run dev:web",
+    "build:web": "pnpm --filter @fincept/web build",
+    "build": "pnpm run build:web",
+    "lint:web": "pnpm --filter @fincept/web lint",
+    "test:web": "pnpm --filter @fincept/web test",
+    "test:api": "pytest apps/api/tests",
+    "migration:inventory": "python3 scripts/migration/generate_inventory.py",
+    "migration:parity": "python3 scripts/migration/generate_inventory.py --format markdown"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6"
+  }
+}

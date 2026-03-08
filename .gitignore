@@ -1,0 +1,28 @@
+# Dépendances et build — ne jamais pousser
+node_modules/
+**/node_modules/
+.pnpm-store/
+dist/
+**/dist/
+coverage/
+**/coverage/
+.pytest_cache/
+__pycache__/
+**/__pycache__/
+.venv/
+**/.venv/
+.env
+.env.local
+.env.*.local
+*.log
+apps/api/.mypy_cache/
+apps/api/.ruff_cache/
+apps/api/.coverage
+apps/api/uploads/
+apps/api/data/
+docs/migration/generated/
+FinceptAll.zip
+FinceptTerminallAll.zip
+
+# Uniquement React (apps/web) + FastAPI (apps/api) — pas la desktop Tauri
+fincept-terminal-desktop/

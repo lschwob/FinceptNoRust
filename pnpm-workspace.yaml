@@ -1,0 +1,3 @@
+# Web migration: React (apps/web) + FastAPI (apps/api). API is Python, no package.json.
+packages:
+  - apps/*
