@@ -189,7 +189,7 @@ export function useEconomicsData(): UseEconomicsDataReturn {
       const country = COUNTRIES.find(c => c.code === selectedCountry);
       const indicators = getIndicatorsForSource(dataSource);
       const currentSourceConfig = DATA_SOURCES.find(s => s.id === dataSource)!;
-      let result: string;
+      let result: string | unknown;
       let countryCode = selectedCountry;
 
       // Get appropriate country code for data source
@@ -501,7 +501,8 @@ export function useEconomicsData(): UseEconomicsDataReturn {
           throw new Error('Unknown data source');
       }
 
-      const parsed = JSON.parse(result);
+      // Bridge returns already-parsed object; Tauri may return JSON string
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
 
       // Check for error in response
       if (parsed.error || parsed.success === false) {
