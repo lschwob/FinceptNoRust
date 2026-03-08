@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(__file__).resolve().parents[3] / "fincept-terminal-desktop"
     )
     legacy_scripts_root: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[2] / "legacy_scripts"
+        default_factory=lambda: (Path(__file__).resolve().parents[2] / "legacy_scripts").resolve()
     )
     upload_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[1] / "data" / "uploads")
     job_poll_interval_ms: int = 1000

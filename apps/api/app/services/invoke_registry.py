@@ -115,9 +115,15 @@ def _execute_python_script(args: dict[str, Any]) -> Any:
             details={"command": "execute_python_script"},
             status_code=422,
         )
+    script_env = args.get("env") or {}
+    if isinstance(script_env, dict):
+        script_env = {str(k): str(v) for k, v in script_env.items() if v is not None}
+    else:
+        script_env = {}
     return python_execution_service.execute_json(
         script_path=script_path,
         args=args.get("args", []),
+        env=script_env,
     )
 
 

@@ -31,3 +31,7 @@ pnpm run dev:web
 
 - Frontend : http://localhost:5173  
 - API : http://localhost:8000
+
+## Onglet Economics
+
+Les scripts Python (World Bank, FRED, BLS, Fed, etc.) sont dans `apps/api/legacy_scripts/` (récupérés depuis [FinceptTerminal/scripts](https://github.com/Fincept-Corporation/FinceptTerminal/tree/main/fincept-terminal-desktop/src-tauri/resources/scripts)). Certaines sources nécessitent une clé API (FRED, BLS, BEA, WTO, EIA) : configure-les via l’icône clé dans l’onglet Economics.

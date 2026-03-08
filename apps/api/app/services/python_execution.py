@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -13,25 +14,46 @@ class PythonExecutionService:
         self.settings = get_settings()
 
     def resolve_script_path(self, script_path: str) -> Path:
-        candidate = (self.settings.legacy_scripts_root / script_path).resolve()
+        root = self.settings.legacy_scripts_root.resolve()
+        candidate = (root / script_path).resolve()
         if not candidate.exists():
             raise ApiError(
                 code="script_not_found",
                 message=f"Legacy script '{script_path}' was not found.",
+                details={"script_path": script_path, "legacy_scripts_root": str(root)},
+                status_code=404,
+            )
+        # Prevent path traversal: script must stay under legacy_scripts_root
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            raise ApiError(
+                code="script_not_found",
+                message=f"Legacy script '{script_path}' is not under legacy_scripts_root.",
                 details={"script_path": script_path},
                 status_code=404,
             )
         return candidate
 
-    def execute_json(self, script_path: str, args: list[str] | None = None) -> dict | list:
+    def execute_json(
+        self,
+        script_path: str,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
+    ) -> dict | list:
         args = args or []
+        env = env or {}
         candidate = self.resolve_script_path(script_path)
         command = ["python3", str(candidate), *args]
+        run_env = os.environ.copy()
+        for k, v in env.items():
+            run_env[str(k)] = str(v)
         completed = subprocess.run(
             command,
             capture_output=True,
             text=True,
             cwd=str(candidate.parent),
+            env=run_env,
             check=False,
         )
         if completed.returncode != 0:
