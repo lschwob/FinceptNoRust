@@ -36,6 +36,7 @@ export default defineConfig({
       // CCXT proxy agents (Node-only; stub in browser)
       "http-proxy-agent": path.resolve(__dirname, "./src/shims/http-proxy-agent.ts"),
       "https-proxy-agent": path.resolve(__dirname, "./src/shims/https-proxy-agent.ts"),
+      "socks-proxy-agent": path.resolve(__dirname, "./src/shims/socks-proxy-agent.ts"),
       // Tauri shims (web: no Rust, bridge to FastAPI)
       "@tauri-apps/api/core": path.resolve(__dirname, "./src/shims/tauri-core.ts"),
       "@tauri-apps/api/event": path.resolve(__dirname, "./src/shims/tauri-event.ts"),
