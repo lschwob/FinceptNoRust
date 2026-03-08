@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any, Callable
 
@@ -128,7 +129,7 @@ def _execute_python_script(args: dict[str, Any]) -> Any:
 
 
 def _akshare_get_endpoints(args: dict[str, Any]) -> dict[str, Any]:
-    """List available endpoints for an AKShare script. Frontend expects { success, data: { available_endpoints, categories? } }."""
+    """List available endpoints for an AKShare script. Legacy scripts return { success, data: { available_endpoints, categories? } } or { available_endpoints?, error? }."""
     script = args.get("script")
     if not script:
         raise ApiError(
@@ -142,27 +143,43 @@ def _akshare_get_endpoints(args: dict[str, Any]) -> dict[str, Any]:
             script_path=script,
             args=["get_all_endpoints"],
         )
+    except ApiError as e:
+        details = e.details or {}
+        stdout = details.get("stdout", "")
+        stderr = details.get("stderr", "")
+        if stdout and stdout.strip():
+            try:
+                parsed = json.loads(stdout)
+                if isinstance(parsed, dict):
+                    inner = parsed.get("data", parsed)
+                    endpoints = (inner.get("available_endpoints") or inner.get("endpoints") or []) if isinstance(inner, dict) else []
+                    return {"success": True, "data": {"available_endpoints": endpoints, "categories": (inner.get("categories") or {}) if isinstance(inner, dict) else {}}}
+            except Exception:
+                pass
+        err_msg = e.message
+        if stderr and stderr.strip():
+            err_msg = f"{err_msg}: {stderr.strip()[:500]}"
+        return {"success": False, "error": err_msg, "data": {"available_endpoints": [], "categories": {}}}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "data": {"available_endpoints": [], "categories": {}},
-        }
-    # Normalize: script may return { available_endpoints, total_count, categories? } or { error, available_endpoints? }
+        return {"success": False, "error": str(e), "data": {"available_endpoints": [], "categories": {}}}
+    # Legacy script can return { data: { available_endpoints, categories } } or flat { available_endpoints, categories? }
     if isinstance(raw, dict):
-        endpoints = raw.get("available_endpoints") or raw.get("endpoints") or []
+        inner = raw.get("data", raw)
+        if not isinstance(inner, dict):
+            inner = raw
+        endpoints = inner.get("available_endpoints") or inner.get("endpoints") or []
         return {
-            "success": True,
+            "success": raw.get("success", True),
             "data": {
                 "available_endpoints": endpoints if isinstance(endpoints, list) else [],
-                "categories": raw.get("categories") or {},
+                "categories": inner.get("categories") or {},
             },
         }
     return {"success": True, "data": {"available_endpoints": [], "categories": {}}}
 
 
 def _akshare_query(args: dict[str, Any]) -> Any:
-    """Run an AKShare endpoint. Frontend expects { success?, data?, count?, ... }."""
+    """Run an AKShare endpoint via legacy script. Frontend expects { success?, data?, count?, error? }."""
     script = args.get("script")
     endpoint = args.get("endpoint")
     if not script or not endpoint:
@@ -176,10 +193,23 @@ def _akshare_query(args: dict[str, Any]) -> Any:
     if not isinstance(query_args, list):
         query_args = []
     script_args = [endpoint] + [str(a) for a in query_args]
-    return python_execution_service.execute_json(
-        script_path=script,
-        args=script_args,
-    )
+    try:
+        return python_execution_service.execute_json(
+            script_path=script,
+            args=script_args,
+        )
+    except ApiError as e:
+        details = e.details or {}
+        stdout = (details.get("stdout") or "").strip()
+        stderr = (details.get("stderr") or "").strip()
+        if stdout:
+            try:
+                parsed = json.loads(stdout)
+                if isinstance(parsed, dict) and ("success" in parsed or "error" in parsed):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+        return {"success": False, "error": stderr or e.message, "data": []}
 
 
 def _default_not_implemented(command: str, args: dict[str, Any]) -> dict[str, Any]:
