@@ -106,8 +106,17 @@ def _db_delete_credential(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _execute_python_script(args: dict[str, Any]) -> Any:
+    # Frontend may send scriptName (camelCase) or script_name (snake_case)
+    script_path = args.get("script_name") or args.get("scriptName")
+    if not script_path:
+        raise ApiError(
+            code="missing_argument",
+            message="Missing argument 'script_name' (or 'scriptName') for command 'execute_python_script'.",
+            details={"command": "execute_python_script"},
+            status_code=422,
+        )
     return python_execution_service.execute_json(
-        script_path=args["script_name"],
+        script_path=script_path,
         args=args.get("args", []),
     )
 
