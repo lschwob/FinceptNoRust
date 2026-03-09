@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Settings, FolderOpen, Globe, Check, AlertCircle } from 'lucide-react';
 import { useTerminalTheme } from '@/contexts/ThemeContext';
-import { bridgeInvoke } from '../../../../shims/platform-bridge';
+import { bridgeInvoke } from '../../../../../shims/platform-bridge';
 
 type AdapterType = 'ecb' | 'csv_folder';
 
