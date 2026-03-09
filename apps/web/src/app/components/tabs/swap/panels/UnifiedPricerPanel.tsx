@@ -215,8 +215,8 @@ export default function UnifiedPricerPanel({ snapshot, onAddToBook }: Props) {
 
       {structResult && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          <ResultCard label="PV" value={`${structResult.pv >= 0 ? '+' : ''}€${structResult.pv.toLocaleString()}`} colors={colors} />
-          <ResultCard label="DV01" value={`€${structResult.dv01.toLocaleString()}`} colors={colors} />
+          <ResultCard label="PV" value={`${Number(structResult.pv) >= 0 ? '+' : ''}€${Number(structResult.pv || 0).toLocaleString()}`} colors={colors} />
+          <ResultCard label="DV01" value={`€${Number(structResult.dv01 || 0).toLocaleString()}`} colors={colors} />
           {structResult.current_spread_bps != null && <ResultCard label="Spread" value={`${structResult.current_spread_bps}bp`} colors={colors} />}
           {structResult.current_fly_bps != null && <ResultCard label="Fly Level" value={`${structResult.current_fly_bps}bp`} colors={colors} />}
           {structResult.current_asw_bps != null && <ResultCard label="ASW" value={`${structResult.current_asw_bps}bp`} colors={colors} />}

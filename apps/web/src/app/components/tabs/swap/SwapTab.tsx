@@ -13,6 +13,7 @@ import DiscountFactorChart from './charts/DiscountFactorChart';
 import SpreadChart from './charts/SpreadChart';
 import UnifiedPricerPanel from './panels/UnifiedPricerPanel';
 import EnhancedBlotterPanel from './panels/EnhancedBlotterPanel';
+import DataSourceConfigPanel from './panels/DataSourceConfigPanel';
 import RatesBacktestPanel from './panels/RatesBacktestPanel';
 import RiskProjectionPanel from './panels/RiskProjectionPanel';
 
@@ -169,6 +170,8 @@ const SwapTab: React.FC = () => {
 
       {activeSubTab === 'market' && (
         <>
+          <DataSourceConfigPanel onConfigured={() => fetchData(true)} />
+
           {isLoading && !snapshot && (
             <div style={{ padding: 32, textAlign: 'center' }}>Loading market data…</div>
           )}

@@ -5,6 +5,7 @@ from typing import Any
 
 from app.domains.rates_ird import ecb_sdw, pricing, rates_backtest, risk_projection, swap_paper
 from app.domains.rates_ird import market_data_provider, structured_pricing
+from app.domains.rates_ird.csv_adapter import CSVFolderAdapter
 from app.domains.rates_ird.dtcc_sdr import get_dtcc_static_fallback
 from app.domains.rates_ird.swap_market_data_loader import (
     is_snapshot_empty,
@@ -231,10 +232,39 @@ def get_live_rates(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def set_market_data_adapter_handler(args: dict[str, Any]) -> dict[str, Any]:
-    """Switch between 'ecb' (default) and 'template' adapter."""
+    """Switch between 'ecb', 'csv_folder', or 'template' adapter."""
     adapter_name = args.get("adapter", "ecb")
     ttl = float(args.get("cache_ttl", 30))
-    if adapter_name == "template":
+    if adapter_name == "csv_folder":
+        folder = args.get("folder", "")
+        if not folder:
+            return {"success": False, "error": "Missing 'folder' argument for csv_folder adapter"}
+        currency = args.get("currency", "EUR")
+        curve_filter = args.get("curve_filter") or None
+        rate_field = args.get("rate_field", "rate1")
+        adapter = CSVFolderAdapter(
+            folder=folder,
+            currency=currency,
+            curve_filter=curve_filter,
+            rate_field=rate_field,
+        )
+        market_data_provider.set_active_adapter(adapter)
+        market_data_provider.set_cache_ttl(ttl)
+        snap = market_data_provider.get_live_snapshot(force_refresh=True)
+        return {
+            "success": True,
+            "data": {
+                "adapter": adapter_name,
+                "cache_ttl": ttl,
+                "folder": folder,
+                "currency": currency,
+                "curve_filter": curve_filter,
+                "rate_field": rate_field,
+                "spot_points_loaded": len(snap.spot_curve),
+                "status": adapter.status,
+            },
+        }
+    elif adapter_name == "template":
         market_data_provider.set_active_adapter(market_data_provider.TemplateAdapter())
     else:
         market_data_provider.set_active_adapter(market_data_provider.ECBAdapter())
