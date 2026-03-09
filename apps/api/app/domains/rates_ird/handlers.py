@@ -5,7 +5,7 @@ from typing import Any
 
 from app.domains.rates_ird import ecb_sdw, pricing, rates_backtest, risk_projection, swap_paper
 from app.domains.rates_ird import market_data_provider, structured_pricing
-from app.domains.rates_ird.csv_adapter import CSVFolderAdapter
+from app.domains.rates_ird.csv_adapter import CSVFolderAdapter, list_csv_curves
 from app.domains.rates_ird.dtcc_sdr import get_dtcc_static_fallback
 from app.domains.rates_ird.swap_market_data_loader import (
     is_snapshot_empty,
@@ -272,6 +272,16 @@ def set_market_data_adapter_handler(args: dict[str, Any]) -> dict[str, Any]:
     return {"success": True, "data": {"adapter": adapter_name, "cache_ttl": ttl}}
 
 
+def list_csv_curves_handler(args: dict[str, Any]) -> dict[str, Any]:
+    """List available curves in the CSV folder."""
+    folder = args.get("folder", "")
+    if not folder:
+        return {"success": False, "error": "Missing 'folder'"}
+    currency = args.get("currency", "EUR")
+    result = list_csv_curves(folder, currency)
+    return {"success": True, "data": result}
+
+
 def price_curve_trade_handler(args: dict[str, Any]) -> dict[str, Any]:
     snap = market_data_provider.get_live_snapshot()
     result = structured_pricing.price_curve_trade(
@@ -345,6 +355,7 @@ def get_rates_ird_handlers() -> dict[str, Any]:
         "get_swap_tab_snapshot": get_swap_tab_snapshot,
         "get_live_rates": get_live_rates,
         "set_market_data_adapter": set_market_data_adapter_handler,
+        "list_csv_curves": list_csv_curves_handler,
         "price_irs": price_irs_handler,
         "price_bond": price_bond_handler,
         "price_ois": price_ois_handler,

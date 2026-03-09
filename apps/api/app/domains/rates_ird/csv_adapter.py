@@ -293,3 +293,28 @@ class CSVFolderAdapter(MarketDataAdapter):
             "last_file": self._last_file.name if self._last_file else None,
             "last_mtime": time.ctime(self._last_mtime) if self._last_mtime else None,
         }
+
+
+def list_csv_curves(folder: str | Path, currency: str = "EUR") -> dict[str, Any]:
+    """Scan the latest CSV and return available curves per currency."""
+    folder = Path(folder)
+    csv_path = _find_latest_csv(folder)
+    if csv_path is None:
+        return {"file": None, "currencies": [], "curves": []}
+    currencies: set[str] = set()
+    curves: dict[str, set[str]] = {}
+    with open(csv_path, encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            ccy = (row.get("SensiCurveCurrency") or "").strip().upper()
+            curve = (row.get("SensiCurve") or "").strip()
+            if ccy:
+                currencies.add(ccy)
+            if ccy and curve:
+                curves.setdefault(ccy, set()).add(curve)
+    all_curves = sorted(curves.get(currency.upper(), set()))
+    return {
+        "file": csv_path.name,
+        "currencies": sorted(currencies),
+        "curves": all_curves,
+    }
