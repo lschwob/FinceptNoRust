@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.domains.rates_ird import ecb_sdw, pricing, rates_backtest, risk_projection, swap_paper
+from app.domains.rates_ird import market_data_provider, structured_pricing
 from app.domains.rates_ird.dtcc_sdr import get_dtcc_static_fallback
 from app.domains.rates_ird.swap_market_data_loader import (
     is_snapshot_empty,
@@ -208,6 +209,100 @@ def build_discount_curve_handler(args: dict[str, Any]) -> dict[str, Any]:
     return {"success": True, "data": [list(p) for p in curve]}
 
 
+def get_live_rates(args: dict[str, Any]) -> dict[str, Any]:
+    """Real-time rates snapshot via pluggable adapter."""
+    force = bool(args.get("force_refresh", False))
+    snap = market_data_provider.get_live_snapshot(force_refresh=force)
+    data = snap.to_dict()
+    data["spreads"] = {
+        "2s5s": snap.spread("2Y", "5Y"),
+        "2s10s": snap.spread("2Y", "10Y"),
+        "2s30s": snap.spread("2Y", "30Y"),
+        "5s10s": snap.spread("5Y", "10Y"),
+        "5s30s": snap.spread("5Y", "30Y"),
+        "10s30s": snap.spread("10Y", "30Y"),
+    }
+    data["flies"] = {
+        "2s5s10s": snap.fly("2Y", "5Y", "10Y"),
+        "2s10s30s": snap.fly("2Y", "10Y", "30Y"),
+        "5s10s30s": snap.fly("5Y", "10Y", "30Y"),
+    }
+    return {"success": True, "data": data}
+
+
+def set_market_data_adapter_handler(args: dict[str, Any]) -> dict[str, Any]:
+    """Switch between 'ecb' (default) and 'template' adapter."""
+    adapter_name = args.get("adapter", "ecb")
+    ttl = float(args.get("cache_ttl", 30))
+    if adapter_name == "template":
+        market_data_provider.set_active_adapter(market_data_provider.TemplateAdapter())
+    else:
+        market_data_provider.set_active_adapter(market_data_provider.ECBAdapter())
+    market_data_provider.set_cache_ttl(ttl)
+    return {"success": True, "data": {"adapter": adapter_name, "cache_ttl": ttl}}
+
+
+def price_curve_trade_handler(args: dict[str, Any]) -> dict[str, Any]:
+    snap = market_data_provider.get_live_snapshot()
+    result = structured_pricing.price_curve_trade(
+        short_tenor=args.get("short_tenor", "2Y"),
+        long_tenor=args.get("long_tenor", "10Y"),
+        notional=float(args.get("notional", 10_000_000)),
+        position=args.get("position", "steepener"),
+        snapshot=snap,
+        pay_freq=int(args.get("pay_freq", 2)),
+        entry_spread_bps=args.get("entry_spread_bps"),
+    )
+    return {"success": "error" not in result, "data": result}
+
+
+def price_fly_handler(args: dict[str, Any]) -> dict[str, Any]:
+    snap = market_data_provider.get_live_snapshot()
+    result = structured_pricing.price_fly(
+        wing1=args.get("wing1", "2Y"),
+        body=args.get("body", "5Y"),
+        wing2=args.get("wing2", "10Y"),
+        notional=float(args.get("notional", 10_000_000)),
+        position=args.get("position", "sell_body"),
+        snapshot=snap,
+        pay_freq=int(args.get("pay_freq", 2)),
+        entry_fly_bps=args.get("entry_fly_bps"),
+    )
+    return {"success": "error" not in result, "data": result}
+
+
+def price_asw_handler(args: dict[str, Any]) -> dict[str, Any]:
+    snap = market_data_provider.get_live_snapshot()
+    swap_rate = args.get("swap_rate")
+    if swap_rate is not None:
+        swap_rate = float(swap_rate)
+    result = structured_pricing.price_asw(
+        bond_yield=float(args.get("bond_yield", 0)),
+        swap_rate=swap_rate,
+        tenor=args.get("tenor", "10Y"),
+        notional=float(args.get("notional", 10_000_000)),
+        snapshot=snap,
+        pay_freq=int(args.get("pay_freq", 2)),
+        entry_asw_bps=args.get("entry_asw_bps"),
+    )
+    return {"success": "error" not in result, "data": result}
+
+
+def price_basis_swap_handler(args: dict[str, Any]) -> dict[str, Any]:
+    snap = market_data_provider.get_live_snapshot()
+    result = structured_pricing.price_basis_swap(
+        tenor=args.get("tenor", "5Y"),
+        index1=args.get("index1", "3M"),
+        index2=args.get("index2", "6M"),
+        spread_bps=float(args.get("spread_bps", 0)),
+        notional=float(args.get("notional", 10_000_000)),
+        snapshot=snap,
+        pay_freq=int(args.get("pay_freq", 4)),
+        entry_basis_bps=args.get("entry_basis_bps"),
+    )
+    return {"success": "error" not in result, "data": result}
+
+
 def get_rates_ird_handlers() -> dict[str, Any]:
     return {
         "get_estr_rate": get_estr_rate,
@@ -218,9 +313,15 @@ def get_rates_ird_handlers() -> dict[str, Any]:
         "get_eur_irs_rates": get_eur_irs_rates,
         "get_eur_futures": get_eur_futures,
         "get_swap_tab_snapshot": get_swap_tab_snapshot,
+        "get_live_rates": get_live_rates,
+        "set_market_data_adapter": set_market_data_adapter_handler,
         "price_irs": price_irs_handler,
         "price_bond": price_bond_handler,
         "price_ois": price_ois_handler,
+        "price_curve_trade": price_curve_trade_handler,
+        "price_fly": price_fly_handler,
+        "price_asw": price_asw_handler,
+        "price_basis_swap": price_basis_swap_handler,
         "build_discount_curve": build_discount_curve_handler,
         "swap_pt_create_book": swap_paper.swap_pt_create_book,
         "swap_pt_list_books": swap_paper.swap_pt_list_books,
