@@ -4,6 +4,7 @@ Pure Python; discount factors from yield curve (continuous compounding).
 """
 from __future__ import annotations
 
+import datetime as dt
 import math
 from typing import Any
 
@@ -172,4 +173,121 @@ def price_ois(
         "pv": round(pv, 2),
         "par_rate": round(ois * 100, 4),
         "dv01": round(dv01, 2),
+    }
+
+
+def _as_discount_curve(curve_like: Any) -> list[tuple[float, float]]:
+    if isinstance(curve_like, list) and curve_like:
+        first = curve_like[0]
+        if isinstance(first, (list, tuple)) and len(first) >= 2:
+            return [(float(x[0]), float(x[1])) for x in curve_like if len(x) >= 2]
+        if isinstance(first, dict):
+            return build_discount_curve(curve_like)
+    return [(0.0, 1.0)]
+
+
+def _resolve_curves(curves: dict[str, Any] | list[Any]) -> tuple[list[tuple[float, float]], dict[str, list[tuple[float, float]]]]:
+    if isinstance(curves, list):
+        return _as_discount_curve(curves), {}
+    discount = _as_discount_curve(curves.get("discount") or curves.get("discount_curve") or curves.get("yield_curve") or [])
+    fwd_input = curves.get("forwards") or curves.get("forward") or {}
+    forwards: dict[str, list[tuple[float, float]]] = {}
+    if isinstance(fwd_input, dict):
+        for idx, c in fwd_input.items():
+            forwards[str(idx)] = _as_discount_curve(c)
+    return discount, forwards
+
+
+def _bucket_key(t: float) -> str:
+    if t < 1:
+        return "<1Y"
+    if t < 3:
+        return "1-3Y"
+    if t < 7:
+        return "3-7Y"
+    if t < 15:
+        return "7-15Y"
+    return "15Y+"
+
+
+def price_strategy(
+    legs: list[dict[str, Any]],
+    curves: dict[str, Any] | list[Any],
+    valuation_date: str | None = None,
+) -> dict[str, Any]:
+    """Aggregate strategy pricing for multi-leg rate structures."""
+    discount_curve, forwards = _resolve_curves(curves if isinstance(curves, (list, dict)) else {})
+    valuation_date = valuation_date or dt.date.today().isoformat()
+    pv_total = 0.0
+    dv01_total = 0.0
+    carry_roll_total = 0.0
+    leg_results: list[dict[str, Any]] = []
+    buckets: dict[str, float] = {"<1Y": 0.0, "1-3Y": 0.0, "3-7Y": 0.0, "7-15Y": 0.0, "15Y+": 0.0}
+
+    for leg in legs:
+        instrument = str(leg.get("instrument", "irs")).lower()
+        notional = float(leg.get("notional", 0.0))
+        tenor_label = str(leg.get("tenor", "0Y"))
+        tenor_years = _maturity_to_years(tenor_label)
+        freq = int(leg.get("freq", 2) or 2)
+        direction = str(leg.get("direction", "pay")).lower()
+        index = str(leg.get("index", ""))
+        leg_curve = forwards.get(index, discount_curve)
+        sign = 1.0 if direction in {"receive", "receiver", "long"} else -1.0
+
+        if instrument == "bond":
+            coupon = float(leg.get("fixed_rate", 0.0) or 0.0)
+            ytm = float(leg.get("yield", leg.get("ytm", coupon)) or 0.0)
+            bond = price_bond(face=notional, coupon_rate=coupon, yield_to_maturity=ytm, tenor_years=tenor_years, pay_freq=freq)
+            dirty = float(bond.get("dirty_price", 0.0))
+            leg_pv = sign * dirty
+            leg_dv01 = sign * abs(float(bond.get("dv01", 0.0)))
+            par_rate = ytm
+        else:
+            fixed_rate = float(leg.get("fixed_rate", 0.0) or 0.0)
+            spread = float(leg.get("spread", 0.0) or 0.0)
+            fixed_plus_spread = fixed_rate + spread / 10000.0
+            position = "receiver" if sign > 0 else "payer"
+            irs = price_irs(
+                notional=notional,
+                fixed_rate=fixed_plus_spread,
+                tenor_years=tenor_years,
+                pay_freq=freq,
+                discount_curve=leg_curve,
+                position=position,
+            )
+            leg_pv = float(irs.get("pv", 0.0))
+            leg_dv01 = sign * abs(float(irs.get("dv01", 0.0)))
+            par_rate = float(irs.get("par_rate", 0.0))
+
+        # Simplified carry/roll proxy: expected 1Y rolldown in bps scaled by DV01.
+        end_r = 0.0 if tenor_years <= 0 else -math.log(max(_interp_discount(tenor_years, leg_curve), 1e-12)) / tenor_years
+        prev_t = max(tenor_years - 1.0, 0.25)
+        prev_r = -math.log(max(_interp_discount(prev_t, leg_curve), 1e-12)) / prev_t
+        carry_roll = (prev_r - end_r) * 10000.0 * leg_dv01
+
+        pv_total += leg_pv
+        dv01_total += leg_dv01
+        carry_roll_total += carry_roll
+        buckets[_bucket_key(tenor_years)] += leg_dv01
+        leg_results.append(
+            {
+                "instrument": instrument,
+                "index": index,
+                "tenor": tenor_label,
+                "direction": direction,
+                "pv": round(leg_pv, 2),
+                "dv01": round(leg_dv01, 2),
+                "par_rate": round(par_rate, 4),
+                "carry_roll": round(carry_roll, 2),
+            }
+        )
+
+    return {
+        "valuation_date": valuation_date,
+        "pv_total": round(pv_total, 2),
+        "dv01_total": round(dv01_total, 2),
+        "carry_roll_total": round(carry_roll_total, 2),
+        "bucket_dv01": {k: round(v, 2) for k, v in buckets.items()},
+        "legs": leg_results,
     }
