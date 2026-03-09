@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings, FolderOpen, Check, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTerminalTheme } from '@/contexts/ThemeContext';
 import { bridgeInvoke } from '../../../../../shims/platform-bridge';
@@ -18,6 +18,31 @@ interface CurveListResult {
   curves: string[];
 }
 
+interface SavedConfig {
+  adapter: AdapterType;
+  folder: string;
+  currency: string;
+  curve_filter: string;
+  rate_field: string;
+  cache_ttl: string;
+}
+
+const SETTINGS_KEY = 'swap_data_source_config';
+
+async function saveConfig(config: SavedConfig): Promise<void> {
+  try {
+    await bridgeInvoke('db_save_setting', { key: SETTINGS_KEY, value: JSON.stringify(config), category: 'swap' });
+  } catch { /* ignore */ }
+}
+
+async function loadConfig(): Promise<SavedConfig | null> {
+  try {
+    const val = await bridgeInvoke<string | null>('db_get_setting', { key: SETTINGS_KEY });
+    if (val && typeof val === 'string') return JSON.parse(val);
+  } catch { /* ignore */ }
+  return null;
+}
+
 export default function DataSourceConfigPanel({ onConfigured }: { onConfigured?: () => void }) {
   const { colors } = useTerminalTheme();
   const [collapsed, setCollapsed] = useState(false);
@@ -30,10 +55,10 @@ export default function DataSourceConfigPanel({ onConfigured }: { onConfigured?:
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ConfigResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-
   const [availableCurves, setAvailableCurves] = useState<string[]>([]);
   const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([]);
   const [csvFile, setCsvFile] = useState<string | null>(null);
+  const autoAppliedRef = useRef(false);
 
   const fetchCurves = async (f?: string, ccy?: string) => {
     try {
@@ -44,37 +69,38 @@ export default function DataSourceConfigPanel({ onConfigured }: { onConfigured?:
         setAvailableCurves(res.data.curves);
         setAvailableCurrencies(res.data.currencies);
         setCsvFile(res.data.file);
-        if (!curveFilter && res.data.curves.length > 0) {
-          setCurveFilter(res.data.curves[0]);
-        }
+        return res.data.curves;
       }
     } catch { /* ignore */ }
+    return [];
   };
 
-  useEffect(() => {
-    if (adapter === 'csv_folder' && folder) fetchCurves();
-  }, []);
+  const applyConfig = async (cfg?: Partial<SavedConfig>) => {
+    const a = cfg?.adapter || adapter;
+    const f = cfg?.folder || folder;
+    const ccy = cfg?.currency || currency;
+    const cf = cfg?.curve_filter ?? curveFilter;
+    const rf = cfg?.rate_field || rateField;
+    const ttl = cfg?.cache_ttl || cacheTtl;
 
-  const handleFolderBlur = () => { if (adapter === 'csv_folder' && folder) fetchCurves(); };
-  const handleCurrencyChange = (ccy: string) => { setCurrency(ccy); if (folder) fetchCurves(folder, ccy); };
-
-  const handleApply = async () => {
     setLoading(true);
     setError(null);
     setResult(null);
     try {
-      const args: Record<string, unknown> = { adapter, cache_ttl: Number(cacheTtl) };
-      if (adapter === 'csv_folder') {
-        args.folder = folder;
-        args.currency = currency;
-        args.curve_filter = curveFilter || undefined;
-        args.rate_field = rateField;
+      const args: Record<string, unknown> = { adapter: a, cache_ttl: Number(ttl) };
+      if (a === 'csv_folder') {
+        args.folder = f;
+        args.currency = ccy;
+        args.curve_filter = cf || undefined;
+        args.rate_field = rf;
       }
       const res = await bridgeInvoke<{ success: boolean; data?: ConfigResult; error?: string }>(
         'set_market_data_adapter', args,
       );
       if (res?.success && res.data) {
         setResult(res.data);
+        // Persist config
+        await saveConfig({ adapter: a, folder: f, currency: ccy, curve_filter: cf, rate_field: rf, cache_ttl: ttl });
         onConfigured?.();
       } else {
         setError(res?.error || 'Configuration failed');
@@ -85,6 +111,41 @@ export default function DataSourceConfigPanel({ onConfigured }: { onConfigured?:
       setLoading(false);
     }
   };
+
+  // Load saved config on mount and auto-apply
+  useEffect(() => {
+    if (autoAppliedRef.current) return;
+    autoAppliedRef.current = true;
+    (async () => {
+      const saved = await loadConfig();
+      if (saved) {
+        setAdapter(saved.adapter);
+        setFolder(saved.folder);
+        setCurrency(saved.currency);
+        setCurveFilter(saved.curve_filter);
+        setRateField(saved.rate_field);
+        setCacheTtl(saved.cache_ttl);
+        if (saved.adapter === 'csv_folder' && saved.folder) {
+          const curves = await fetchCurves(saved.folder, saved.currency);
+          if (!saved.curve_filter && curves.length > 0) {
+            setCurveFilter(curves[0]);
+            await applyConfig({ ...saved, curve_filter: curves[0] });
+          } else {
+            await applyConfig(saved);
+          }
+        } else {
+          await applyConfig(saved);
+        }
+        setCollapsed(true);
+      } else {
+        // No saved config — try to fetch curves for default folder
+        await fetchCurves();
+      }
+    })();
+  }, []);
+
+  const handleFolderBlur = () => { if (adapter === 'csv_folder' && folder) fetchCurves(); };
+  const handleCurrencyChange = (ccy: string) => { setCurrency(ccy); if (folder) fetchCurves(folder, ccy); };
 
   const inp: React.CSSProperties = {
     padding: '5px 8px', backgroundColor: colors.background,
@@ -97,11 +158,7 @@ export default function DataSourceConfigPanel({ onConfigured }: { onConfigured?:
   };
 
   return (
-    <div style={{
-      backgroundColor: colors.panel, border: `1px solid ${colors.textMuted}40`,
-      borderRadius: 4, marginBottom: 14, overflow: 'hidden',
-    }}>
-      {/* Header — always visible */}
+    <div style={{ backgroundColor: colors.panel, border: `1px solid ${colors.textMuted}40`, borderRadius: 4, marginBottom: 14, overflow: 'hidden' }}>
       <button type="button" onClick={() => setCollapsed(!collapsed)} style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
         padding: '8px 14px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', color: colors.primary,
@@ -118,7 +175,6 @@ export default function DataSourceConfigPanel({ onConfigured }: { onConfigured?:
         {collapsed ? <ChevronDown size={14} color={colors.textMuted} /> : <ChevronUp size={14} color={colors.textMuted} />}
       </button>
 
-      {/* Body — collapsible */}
       {!collapsed && (
         <div style={{ padding: '0 14px 12px' }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -129,25 +185,20 @@ export default function DataSourceConfigPanel({ onConfigured }: { onConfigured?:
                 <option value="ecb">ECB SDW</option>
               </select>
             </div>
-
             {adapter === 'csv_folder' && (
               <>
                 <div style={{ width: 240 }}>
                   <div style={lbl}><FolderOpen size={9} style={{ verticalAlign: 'middle', marginRight: 3 }} />Folder</div>
                   <input value={folder} onChange={e => setFolder(e.target.value)} onBlur={handleFolderBlur} style={inp} placeholder="/path/to/csv" />
                 </div>
-
                 <div style={{ width: 80 }}>
                   <div style={lbl}>Currency</div>
                   {availableCurrencies.length > 0 ? (
                     <select value={currency} onChange={e => handleCurrencyChange(e.target.value)} style={inp}>
                       {availableCurrencies.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                  ) : (
-                    <input value={currency} onChange={e => setCurrency(e.target.value)} style={inp} />
-                  )}
+                  ) : <input value={currency} onChange={e => setCurrency(e.target.value)} style={inp} />}
                 </div>
-
                 <div style={{ width: 180 }}>
                   <div style={lbl}>Curve</div>
                   {availableCurves.length > 0 ? (
@@ -155,11 +206,8 @@ export default function DataSourceConfigPanel({ onConfigured }: { onConfigured?:
                       <option value="">All curves</option>
                       {availableCurves.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                  ) : (
-                    <input value={curveFilter} onChange={e => setCurveFilter(e.target.value)} style={inp} placeholder="(auto-detect)" />
-                  )}
+                  ) : <input value={curveFilter} onChange={e => setCurveFilter(e.target.value)} style={inp} placeholder="(auto-detect)" />}
                 </div>
-
                 <div style={{ width: 70 }}>
                   <div style={lbl}>Rate</div>
                   <select value={rateField} onChange={e => setRateField(e.target.value)} style={inp}>
@@ -169,13 +217,11 @@ export default function DataSourceConfigPanel({ onConfigured }: { onConfigured?:
                 </div>
               </>
             )}
-
             <div style={{ width: 60 }}>
               <div style={lbl}>TTL (s)</div>
               <input type="number" value={cacheTtl} onChange={e => setCacheTtl(e.target.value)} style={inp} />
             </div>
-
-            <button type="button" onClick={handleApply} disabled={loading} style={{
+            <button type="button" onClick={() => applyConfig()} disabled={loading} style={{
               padding: '6px 18px', backgroundColor: colors.primary, color: colors.background,
               border: 'none', borderRadius: 3, fontWeight: 700, fontSize: 11,
               cursor: loading ? 'wait' : 'pointer', height: 30, whiteSpace: 'nowrap',
@@ -183,23 +229,19 @@ export default function DataSourceConfigPanel({ onConfigured }: { onConfigured?:
               {loading ? '···' : 'APPLY'}
             </button>
           </div>
-
           {csvFile && adapter === 'csv_folder' && (
-            <div style={{ marginTop: 8, fontSize: 10, color: colors.textMuted }}>
+            <div style={{ marginTop: 6, fontSize: 10, color: colors.textMuted }}>
               File: {csvFile} · {availableCurves.length} curve{availableCurves.length !== 1 ? 's' : ''} detected
             </div>
           )}
-
           {error && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '6px 10px', backgroundColor: '#EF444415', border: '1px solid #EF444440', borderRadius: 3, fontSize: 10, color: '#EF4444' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '5px 10px', backgroundColor: '#EF444415', border: '1px solid #EF444440', borderRadius: 3, fontSize: 10, color: '#EF4444' }}>
               <AlertCircle size={11} /> {error}
             </div>
           )}
           {result && !error && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '6px 10px', backgroundColor: '#22C55E15', border: '1px solid #22C55E40', borderRadius: 3, fontSize: 10, color: '#22C55E' }}>
-              <Check size={11} />
-              Connected — {result.spot_points_loaded} spot points loaded
-              {result.status && (result.status as Record<string, unknown>).last_file && <> · {String((result.status as Record<string, unknown>).last_file)}</>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '5px 10px', backgroundColor: '#22C55E15', border: '1px solid #22C55E40', borderRadius: 3, fontSize: 10, color: '#22C55E' }}>
+              <Check size={11} /> Connected — {result.spot_points_loaded} points · config saved
             </div>
           )}
         </div>
