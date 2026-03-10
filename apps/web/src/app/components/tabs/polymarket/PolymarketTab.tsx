@@ -28,8 +28,9 @@ import { polymarket5mUniverseService } from '@/services/polymarket/Polymarket5mU
 import { polymarket5mStoreService } from '@/services/polymarket/Polymarket5mStoreService';
 import { PolymarketWatchlistView } from './PolymarketWatchlistView';
 import { polymarketWatchlistService, type PolymarketWatchlistEntry } from '@/services/polymarket/polymarketWatchlistService';
+import InsiderView from './InsiderView';
 
-type ActiveView = 'markets' | 'events' | 'sports' | 'updown' | 'stats-5m' | 'backtest-5m' | 'resolved' | 'portfolio' | 'portfolio-tracker' | 'bots' | 'bot-deploy' | 'watchlist';
+type ActiveView = 'markets' | 'events' | 'sports' | 'updown' | 'stats-5m' | 'backtest-5m' | 'resolved' | 'portfolio' | 'portfolio-tracker' | 'bots' | 'bot-deploy' | 'watchlist' | 'insider';
 
 void polymarket5mUniverseService.ensureStarted();
 void polymarket5mStoreService.ensureStarted();
@@ -389,7 +390,8 @@ const PolymarketTab: React.FC = () => {
 
   // ── Derived flags ────────────────────────────────────────────────────────────
   const isBotView       = activeView === 'bots' || activeView === 'bot-deploy';
-  const isFullscreen    = activeView === 'portfolio' || activeView === 'portfolio-tracker';
+  const isInsider       = activeView === 'insider';
+  const isFullscreen    = activeView === 'portfolio' || activeView === 'portfolio-tracker' || isInsider;
   const isResolved      = activeView === 'resolved';
   const isUpDown        = activeView === 'updown';
   const isStats5m       = activeView === 'stats-5m';
@@ -441,6 +443,7 @@ const PolymarketTab: React.FC = () => {
             { key: 'portfolio', label: 'PORTFOLIO', icon: <Wallet size={10} style={{ marginRight: 3 }} /> },
             { key: 'portfolio-tracker', label: 'TRACKER', icon: <BarChart3 size={10} style={{ marginRight: 3 }} /> },
             { key: 'bots',      label: 'AI BOTS',   icon: <Bot    size={10} style={{ marginRight: 3 }} /> },
+            { key: 'insider',   label: 'INSIDER',   icon: <Search size={10} style={{ marginRight: 3 }} /> },
           ].map(({ key, label, icon }) => {
             const isActive = activeView === key || (key === 'bots' && activeView === 'bot-deploy');
             return (
@@ -508,7 +511,7 @@ const PolymarketTab: React.FC = () => {
       {/* ── Body ─────────────────────────────────────────────────────────────── */}
       {isFullscreen ? (
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          {activeView === 'portfolio' ? <PortfolioPanel /> : <PortfolioTrackerView />}
+          {isInsider ? <InsiderView /> : activeView === 'portfolio' ? <PortfolioPanel /> : <PortfolioTrackerView />}
         </div>
       ) : isUpDown ? (
         <div style={{ flex: 1, overflow: 'hidden' }}>
