@@ -39,6 +39,7 @@ export type {
   PolymarketTopHolders,
   PolymarketOpenInterest,
   PolymarketProfile,
+  PublicProfile,
   PolymarketComment,
   UserPosition,
   UserPortfolioValue,
@@ -568,19 +569,41 @@ class PolymarketServiceEnhanced {
     }
   }
 
-  // Derives a UserProfile from activity/position records (profile fields are embedded in API responses)
+  /**
+   * GET /public-profile?address= on Gamma API.
+   * Returns createdAt, pseudonym, name, profileImage, bio, xUsername, verifiedBadge.
+   * No auth required.
+   */
+  async getPublicProfile(address: string): Promise<import('./polymarketApiTypes').PublicProfile> {
+    const response = await this.gammaFetch(`public-profile?address=${encodeURIComponent(address)}`);
+    if (!response.ok) throw new Error(`Gamma API error: ${response.status}`);
+    return await response.json();
+  }
+
+  // Legacy fallback — derives a UserProfile from activity records
   async getUserProfile(userAddress: string): Promise<UserProfile> {
-    // Fetch a small slice of activity — profile fields (name, pseudonym, bio, profileImage) are on each record
-    const activity = await this.getUserActivity(userAddress, { limit: 5 }).catch(() => [] as UserActivity[]);
-    const first = activity[0];
-    return {
-      proxyWallet: userAddress,
-      name:                  first?.name                  ?? '',
-      pseudonym:             first?.pseudonym             ?? '',
-      bio:                   first?.bio                   ?? '',
-      profileImage:          first?.profileImage          ?? '',
-      profileImageOptimized: first?.profileImageOptimized ?? '',
-    };
+    try {
+      const pub = await this.getPublicProfile(userAddress);
+      return {
+        proxyWallet: pub.proxyWallet || userAddress,
+        name: pub.name ?? '',
+        pseudonym: pub.pseudonym ?? '',
+        bio: pub.bio ?? '',
+        profileImage: pub.profileImage ?? '',
+        profileImageOptimized: '',
+      };
+    } catch {
+      const activity = await this.getUserActivity(userAddress, { limit: 5 }).catch(() => [] as UserActivity[]);
+      const first = activity[0];
+      return {
+        proxyWallet: userAddress,
+        name: first?.name ?? '',
+        pseudonym: first?.pseudonym ?? '',
+        bio: first?.bio ?? '',
+        profileImage: first?.profileImage ?? '',
+        profileImageOptimized: first?.profileImageOptimized ?? '',
+      };
+    }
   }
 
   async getUserTrades(

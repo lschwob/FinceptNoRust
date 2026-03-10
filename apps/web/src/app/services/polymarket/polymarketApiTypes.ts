@@ -166,6 +166,20 @@ export interface PolymarketProfile {
   reputation_score?: number;
 }
 
+/** GET /public-profile?address= on Gamma API */
+export interface PublicProfile {
+  createdAt: string;
+  proxyWallet: string;
+  profileImage: string;
+  displayUsernamePublic: boolean;
+  bio: string;
+  pseudonym: string;
+  name: string;
+  xUsername?: string;
+  verifiedBadge?: boolean;
+  users?: Array<{ id?: string; address?: string }>;
+}
+
 export interface PolymarketComment {
   id: string;
   market_id: string;
