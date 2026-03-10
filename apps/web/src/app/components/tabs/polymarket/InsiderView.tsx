@@ -219,29 +219,32 @@ function InsiderList({ insiders, highlightMarket }: { insiders: FlaggedInsider[]
                   <UserCheck size={13} color={C.red} />
                 </div>
               )}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: C.white, fontWeight: 700 }}>{insider.pseudonym}</span>
-                  <a href={`${POLY_PROFILE_URL}/${insider.wallet}`} target="_blank" rel="noopener noreferrer"
-                    style={{ color: C.orange, display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, textDecoration: 'none' }}
-                    onClick={e => e.stopPropagation()}>
-                    <ExternalLink size={9} /> Profile
-                  </a>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: C.white, fontWeight: 700 }}>{insider.name || insider.pseudonym}</span>
+                    {insider.verifiedBadge && <span style={{ fontSize: 8, color: C.green }}>✓</span>}
+                    {insider.xUsername && <span style={{ fontSize: 8, color: C.faint }}>@{insider.xUsername}</span>}
+                    <a href={`${POLY_PROFILE_URL}/${insider.wallet}`} target="_blank" rel="noopener noreferrer"
+                      style={{ color: C.orange, display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, textDecoration: 'none' }}
+                      onClick={e => e.stopPropagation()}>
+                      <ExternalLink size={9} /> Profile
+                    </a>
+                  </div>
+                  <div style={{ fontSize: 9, color: C.faint, fontFamily: 'monospace', userSelect: 'all', cursor: 'text' }}>
+                    {insider.wallet}
+                  </div>
                 </div>
-                <div style={{ fontSize: 9, color: C.faint, fontFamily: 'monospace', userSelect: 'all', cursor: 'text' }}>
-                  {insider.wallet}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 14, color: C.red, fontWeight: 800, fontFamily: 'monospace' }}>
+                  ${insider.totalPositionValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </div>
+                <div style={{ fontSize: 8, color: C.faint }}>
+                  {insider.distinctMarkets} market{insider.distinctMarkets !== 1 ? 's' : ''} ({insider.openMarkets || '?'} open + {insider.closedMarkets || '?'} closed)
+                  {insider.accountAgeDays !== null && ` · ${insider.accountAgeDays}d old`}
+                  {insider.accountCreatedAt && ` · created ${new Date(insider.accountCreatedAt).toLocaleDateString()}`}
                 </div>
               </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 14, color: C.red, fontWeight: 800, fontFamily: 'monospace' }}>
-                ${insider.totalPositionValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-              </div>
-              <div style={{ fontSize: 8, color: C.faint }}>
-                {insider.distinctMarkets} market{insider.distinctMarkets !== 1 ? 's' : ''}
-                {insider.accountAgeDays !== null && ` · ${insider.accountAgeDays}d old`}
-              </div>
-            </div>
           </div>
 
           {/* Reasons */}
