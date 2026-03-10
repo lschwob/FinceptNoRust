@@ -32,8 +32,7 @@ import InsiderView from './InsiderView';
 
 type ActiveView = 'markets' | 'events' | 'sports' | 'updown' | 'stats-5m' | 'backtest-5m' | 'resolved' | 'portfolio' | 'portfolio-tracker' | 'bots' | 'bot-deploy' | 'watchlist' | 'insider';
 
-void polymarket5mUniverseService.ensureStarted();
-void polymarket5mStoreService.ensureStarted();
+// 5m services are started lazily when user navigates to 5M tabs (avoid CLOB spam on load)
 
 const PolymarketTab: React.FC = () => {
   // ── Navigation ──────────────────────────────────────────────────────────────
@@ -396,6 +395,14 @@ const PolymarketTab: React.FC = () => {
   const isUpDown        = activeView === 'updown';
   const isStats5m       = activeView === 'stats-5m';
   const isBacktest5m    = activeView === 'backtest-5m';
+
+  // Lazy-start 5m services only when needed
+  useEffect(() => {
+    if (isUpDown || isStats5m || isBacktest5m) {
+      polymarket5mUniverseService.ensureStarted();
+      polymarket5mStoreService.ensureStarted();
+    }
+  }, [isUpDown, isStats5m, isBacktest5m]);
   const showPagination  = !isBotView && activeView !== 'sports' && activeView !== 'watchlist' && !isResolved
     && !isStats5m && !isBacktest5m
     && (markets.length >= pageSize || events.length >= pageSize);

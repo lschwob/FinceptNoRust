@@ -357,6 +357,7 @@ class PolymarketServiceEnhanced {
   }
 
   async getOrderBooks(tokenIds: string[]): Promise<PolymarketOrderBook[]> {
+    if (!tokenIds.length) return [];
     try {
       const url = `${this.clobApiBase}/books`;
       const response = await fetch(url, {
@@ -364,11 +365,10 @@ class PolymarketServiceEnhanced {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token_ids: tokenIds })
       });
-      if (!response.ok) throw new Error(`CLOB API error: ${response.status}`);
+      if (!response.ok) return [];
       return await response.json();
-    } catch (error) {
-      console.error('Error fetching multiple order books:', error);
-      throw error;
+    } catch {
+      return [];
     }
   }
 
@@ -385,6 +385,7 @@ class PolymarketServiceEnhanced {
   }
 
   async getPrices(tokenIds: string[], side?: 'BUY' | 'SELL'): Promise<BulkPriceResponse> {
+    if (!tokenIds.length) return { prices: [] } as unknown as BulkPriceResponse;
     try {
       const url = `${this.clobApiBase}/prices`;
       const response = await fetch(url, {
@@ -392,24 +393,18 @@ class PolymarketServiceEnhanced {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token_ids: tokenIds, side })
       });
-      if (!response.ok) throw new Error(`CLOB API error: ${response.status}`);
+      if (!response.ok) return { prices: [] } as unknown as BulkPriceResponse;
       return await response.json();
-    } catch (error) {
-      console.error('Error fetching multiple prices:', error);
-      throw error;
+    } catch {
+      return { prices: [] } as unknown as BulkPriceResponse;
     }
   }
 
   async getMidpoint(tokenId: string): Promise<MidpointPrice> {
-    try {
-      const url = `${this.clobApiBase}/midpoint?token_id=${tokenId}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`CLOB API error: ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching midpoint:', error);
-      throw error;
-    }
+    const url = `${this.clobApiBase}/midpoint?token_id=${tokenId}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`CLOB midpoint ${response.status}`);
+    return await response.json();
   }
 
   async getPriceHistory(params: PriceHistoryParams): Promise<HistoricalPrice> {
@@ -454,18 +449,14 @@ class PolymarketServiceEnhanced {
   }
 
   async getSpread(tokenId: string): Promise<any> {
-    try {
-      const url = `${this.clobApiBase}/spread?token_id=${tokenId}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`CLOB API error: ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching spread:', error);
-      throw error;
-    }
+    const url = `${this.clobApiBase}/spread?token_id=${tokenId}`;
+    const response = await fetch(url);
+    if (!response.ok) return {};
+    return await response.json();
   }
 
   async getSpreads(tokenIds: string[]): Promise<any> {
+    if (!tokenIds.length) return {};
     try {
       const url = `${this.clobApiBase}/spreads`;
       const response = await fetch(url, {
@@ -473,11 +464,10 @@ class PolymarketServiceEnhanced {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token_ids: tokenIds })
       });
-      if (!response.ok) throw new Error(`CLOB API error: ${response.status}`);
+      if (!response.ok) return {};
       return await response.json();
-    } catch (error) {
-      console.error('Error fetching multiple spreads:', error);
-      throw error;
+    } catch {
+      return {};
     }
   }
 
@@ -498,13 +488,11 @@ class PolymarketServiceEnhanced {
 
       const url = `${this.clobApiBase}/data/trades${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
       const response = await fetch(url);
-      if (!response.ok) throw new Error(`CLOB API error: ${response.status}`);
+      if (!response.ok) return [];
       const json = await response.json();
-      // CLOB API returns paginated: { data: PolymarketTrade[], count, limit, offset }
       return Array.isArray(json) ? json : (json.data ?? []);
-    } catch (error) {
-      console.error('Error fetching trades:', error);
-      throw error;
+    } catch {
+      return [];
     }
   }
 
@@ -702,24 +690,17 @@ class PolymarketServiceEnhanced {
     }
   }
 
-  async getOrderBookEnriched(tokenId: string): Promise<PolymarketOrderBookEnriched> {
+  async getOrderBookEnriched(tokenId: string): Promise<PolymarketOrderBookEnriched | null> {
     try {
-      // Use /book?token_id= which returns extra fields: min_order_size, tick_size, last_trade_price, neg_risk
       const url = `${this.clobApiBase}/book?token_id=${tokenId}`;
       const response = await fetch(url);
-      if (!response.ok) throw new Error(`CLOB API error: ${response.status}`);
+      if (!response.ok) return null;
       const data = await response.json();
-      // Ensure bids sorted desc by price, asks sorted asc
-      if (data.bids) {
-        data.bids = data.bids.sort((a: any, b: any) => parseFloat(b.price) - parseFloat(a.price));
-      }
-      if (data.asks) {
-        data.asks = data.asks.sort((a: any, b: any) => parseFloat(a.price) - parseFloat(b.price));
-      }
+      if (data.bids) data.bids = data.bids.sort((a: any, b: any) => parseFloat(b.price) - parseFloat(a.price));
+      if (data.asks) data.asks = data.asks.sort((a: any, b: any) => parseFloat(a.price) - parseFloat(b.price));
       return data as PolymarketOrderBookEnriched;
-    } catch (error) {
-      console.error('Error fetching enriched order book:', error);
-      throw error;
+    } catch {
+      return null;
     }
   }
 
