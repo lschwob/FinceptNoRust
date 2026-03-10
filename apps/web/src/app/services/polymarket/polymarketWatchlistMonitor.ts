@@ -1,6 +1,9 @@
 /**
  * Polymarket Watchlist Monitor — polls live prices for watchlist entries,
  * computes multi-timeframe deltas, and triggers alerts on large moves.
+ *
+ * Uses Gamma API (via slug) for live prices — more reliable than CLOB midpoint.
+ * Uses CLOB prices-history only for delta calculation, with proper error handling.
  */
 import polymarketApiService from './polymarketApiService';
 import { polymarketWatchlistService, type PolymarketWatchlistEntry } from './polymarketWatchlistService';
@@ -32,7 +35,7 @@ export interface WatchlistAlert {
 type AlertCallback = (alert: WatchlistAlert) => void;
 
 const POLL_INTERVAL = 30_000;
-const ALERT_THRESHOLD_BPS = 500; // 5% move triggers alert
+const ALERT_THRESHOLD_BPS = 500;
 
 class WatchlistMonitor {
   private liveData: Map<string, WatchlistLiveData> = new Map();
@@ -59,33 +62,21 @@ class WatchlistMonitor {
   }
 
   onAlert(cb: AlertCallback) { this.alertCallbacks.add(cb); return () => this.alertCallbacks.delete(cb); }
-
-  getLiveData(marketId: string): WatchlistLiveData | undefined {
-    return this.liveData.get(marketId);
-  }
-
+  getLiveData(marketId: string): WatchlistLiveData | undefined { return this.liveData.get(marketId); }
   getAllLiveData(): Map<string, WatchlistLiveData> { return this.liveData; }
-
   getAlerts(): WatchlistAlert[] { return [...this.alerts]; }
-
   getUnreadCount(): number { return this.alerts.filter(a => !a.read).length; }
-
-  markAlertRead(alertId: string) {
-    const a = this.alerts.find(x => x.id === alertId);
-    if (a) a.read = true;
-  }
-
+  markAlertRead(alertId: string) { const a = this.alerts.find(x => x.id === alertId); if (a) a.read = true; }
   markAllRead() { this.alerts.forEach(a => { a.read = true; }); }
-
   clearAlerts() { this.alerts = []; }
 
   private async poll() {
     try {
       const entries = await polymarketWatchlistService.getWatchlist();
       if (entries.length === 0) return;
-
+      // Process sequentially to avoid rate-limiting
       for (const entry of entries) {
-        await this.fetchLiveForEntry(entry);
+        await this.fetchLiveForEntry(entry).catch(() => {});
       }
     } catch (err) {
       console.warn('[WatchlistMonitor] poll error:', err);
@@ -93,102 +84,89 @@ class WatchlistMonitor {
   }
 
   private async fetchLiveForEntry(entry: PolymarketWatchlistEntry) {
-    const { marketId, clobTokenIds, question } = entry;
+    const { marketId, slug, clobTokenIds, question } = entry;
+    let yesPrice = 0, noPrice = 0, volume = 0;
+    let delta1h: number | null = null, delta1d: number | null = null, delta1w: number | null = null;
+
+    // 1. Fetch live prices from Gamma (via slug) — most reliable, no CLOB needed
+    if (slug) {
+      try {
+        const m = await polymarketApiService.getMarketBySlug(slug);
+        const prices = (m as any).outcomePrices;
+        if (Array.isArray(prices) && prices.length >= 2) {
+          yesPrice = parseFloat(prices[0]) || 0;
+          noPrice = parseFloat(prices[1]) || 0;
+        }
+        volume = parseFloat(m.volume || '0');
+        // Use Gamma price change fields if available
+        if (m.oneDayPriceChange != null) delta1d = Math.round(m.oneDayPriceChange * 10000);
+        if (m.oneHourPriceChange != null) delta1h = Math.round(m.oneHourPriceChange * 10000);
+        if (m.oneWeekPriceChange != null) delta1w = Math.round(m.oneWeekPriceChange * 10000);
+      } catch { /* Gamma failed, try CLOB fallback */ }
+    }
+
+    // 2. If Gamma didn't return prices, try CLOB midpoint
     const tokenIds = clobTokenIds ?? [];
     const yesId = tokenIds[0];
-    if (!yesId) return;
-
-    try {
-      const market = await polymarketApiService.getMarkets({ limit: 1 }).catch(() => []);
-      let yesPrice = 0, noPrice = 0, volume = 0;
-      let delta1h: number | null = null, delta1d: number | null = null, delta1w: number | null = null;
-
-      // Fetch current midpoint price
+    if (yesPrice === 0 && yesId) {
       try {
         const mid = await polymarketApiService.getMidpoint(yesId);
-        yesPrice = parseFloat(mid.mid);
-        noPrice = 1 - yesPrice;
-      } catch {
-        // Fallback: use stored prices
-        const stored = entry.outcomePrices ?? [];
-        yesPrice = parseFloat(stored[0] || '0');
-        noPrice = parseFloat(stored[1] || '0');
-        if (yesPrice <= 1 && yesPrice > 0) { /* already decimal */ }
-      }
-
-      // Fetch price history for deltas
-      try {
-        const hist1d = await polymarketApiService.getPriceHistory({ token_id: yesId, interval: '1d', fidelity: 60 });
-        if (hist1d.prices.length >= 2) {
-          const oldest = hist1d.prices[0].price;
-          const latest = hist1d.prices[hist1d.prices.length - 1].price;
-          delta1d = Math.round((latest - oldest) * 10000);
-        }
-        // 1h delta from last hour of 1d data
-        const oneHourAgo = Date.now() / 1000 - 3600;
-        const recentPrices = hist1d.prices.filter(p => p.timestamp >= oneHourAgo);
-        if (recentPrices.length >= 2) {
-          delta1h = Math.round((recentPrices[recentPrices.length - 1].price - recentPrices[0].price) * 10000);
-        }
-      } catch { /* non-fatal */ }
-
-      try {
-        const hist1w = await polymarketApiService.getPriceHistory({ token_id: yesId, interval: '1w', fidelity: 360 });
-        if (hist1w.prices.length >= 2) {
-          delta1w = Math.round((hist1w.prices[hist1w.prices.length - 1].price - hist1w.prices[0].price) * 10000);
-        }
-      } catch { /* non-fatal */ }
-
-      // Fetch volume from Gamma
-      try {
-        const slug = entry.slug;
-        if (slug) {
-          const m = await polymarketApiService.getMarketBySlug(slug);
-          volume = parseFloat(m.volume || '0');
-          // Update prices from Gamma too (more reliable)
-          const gPrices = (m as any).outcomePrices;
-          if (Array.isArray(gPrices) && gPrices.length >= 2) {
-            const gYes = parseFloat(gPrices[0]);
-            const gNo = parseFloat(gPrices[1]);
-            if (!isNaN(gYes) && gYes > 0) { yesPrice = gYes; noPrice = gNo; }
-          }
-        }
-      } catch { /* non-fatal */ }
-
-      const prev = this.previousPrices.get(marketId);
-      const ld: WatchlistLiveData = {
-        marketId, yesPrice, noPrice, volume,
-        delta1h, delta1d, delta1w,
-        lastUpdate: Date.now(),
-      };
-      this.liveData.set(marketId, ld);
-
-      // Alert detection
-      if (prev !== undefined && yesPrice > 0) {
-        const deltaBps = Math.round((yesPrice - prev) * 10000);
-        if (Math.abs(deltaBps) >= this._alertThresholdBps) {
-          const alert: WatchlistAlert = {
-            id: `${marketId}-${Date.now()}`,
-            marketId,
-            question: question || marketId,
-            type: deltaBps > 0 ? 'spike_up' : 'spike_down',
-            message: `${question}: ${deltaBps > 0 ? '↑' : '↓'} ${Math.abs(deltaBps / 100).toFixed(1)}%`,
-            oldPrice: prev,
-            newPrice: yesPrice,
-            deltaBps,
-            timestamp: Date.now(),
-            read: false,
-          };
-          this.alerts.unshift(alert);
-          if (this.alerts.length > 100) this.alerts = this.alerts.slice(0, 100);
-          this.alertCallbacks.forEach(cb => cb(alert));
-        }
-      }
-      this.previousPrices.set(marketId, yesPrice);
-
-    } catch (err) {
-      console.warn(`[WatchlistMonitor] error for ${marketId}:`, err);
+        yesPrice = parseFloat(mid.mid) || 0;
+        noPrice = yesPrice > 0 ? 1 - yesPrice : 0;
+      } catch { /* CLOB midpoint failed */ }
     }
+
+    // 3. If still no prices, use stored ones
+    if (yesPrice === 0) {
+      const stored = entry.outcomePrices ?? [];
+      yesPrice = parseFloat(stored[0] || '0');
+      noPrice = parseFloat(stored[1] || '0');
+    }
+
+    // 4. If no delta from Gamma, try CLOB price history
+    if (delta1d === null && yesId) {
+      try {
+        const hist = await polymarketApiService.getPriceHistory({ token_id: yesId, interval: '1d', fidelity: 60 });
+        if (hist.prices.length >= 2) {
+          delta1d = Math.round((hist.prices[hist.prices.length - 1].price - hist.prices[0].price) * 10000);
+          const oneHourAgo = Date.now() / 1000 - 3600;
+          const recent = hist.prices.filter(p => p.timestamp >= oneHourAgo);
+          if (recent.length >= 2) delta1h = Math.round((recent[recent.length - 1].price - recent[0].price) * 10000);
+        }
+      } catch { /* non-fatal: CLOB history can 400 for some tokens */ }
+    }
+
+    if (delta1w === null && yesId) {
+      try {
+        const hist = await polymarketApiService.getPriceHistory({ token_id: yesId, interval: '1w', fidelity: 360 });
+        if (hist.prices.length >= 2) {
+          delta1w = Math.round((hist.prices[hist.prices.length - 1].price - hist.prices[0].price) * 10000);
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    // Update live data
+    const prev = this.previousPrices.get(marketId);
+    this.liveData.set(marketId, { marketId, yesPrice, noPrice, volume, delta1h, delta1d, delta1w, lastUpdate: Date.now() });
+
+    // Alert detection
+    if (prev !== undefined && yesPrice > 0) {
+      const deltaBps = Math.round((yesPrice - prev) * 10000);
+      if (Math.abs(deltaBps) >= this._alertThresholdBps) {
+        const alert: WatchlistAlert = {
+          id: `${marketId}-${Date.now()}`,
+          marketId, question: question || marketId,
+          type: deltaBps > 0 ? 'spike_up' : 'spike_down',
+          message: `${question}: ${deltaBps > 0 ? '↑' : '↓'} ${Math.abs(deltaBps / 100).toFixed(1)}%`,
+          oldPrice: prev, newPrice: yesPrice, deltaBps,
+          timestamp: Date.now(), read: false,
+        };
+        this.alerts.unshift(alert);
+        if (this.alerts.length > 100) this.alerts = this.alerts.slice(0, 100);
+        this.alertCallbacks.forEach(cb => cb(alert));
+      }
+    }
+    this.previousPrices.set(marketId, yesPrice);
   }
 }
 
