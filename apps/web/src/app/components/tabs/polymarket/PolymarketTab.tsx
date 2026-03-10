@@ -539,10 +539,10 @@ const PolymarketTab: React.FC = () => {
             <div style={{ flex: 1, overflow: 'auto' }}>
               {activeView === 'watchlist' ? (
                 <PolymarketWatchlistView
-                  entries={watchlistEntries}
                   selectedMarketId={selectedMarket?.id ?? null}
                   onSelect={handleWatchlistSelect}
                   onRemove={handleWatchlistRemove}
+                  onReload={loadWatchlist}
                 />
               ) : (
               <MarketList
@@ -634,9 +634,21 @@ const PolymarketTab: React.FC = () => {
                 holdersError={holdersError}
                 recentTrades={recentTrades}
                 onClose={() => setSelectedMarket(null)}
-                isInWatchlist={selectedMarket ? watchlistEntries.some(e => e.marketId === selectedMarket.id) : false}
-                onAddToWatchlist={selectedMarket ? async () => { await polymarketWatchlistService.addToWatchlist(selectedMarket); await loadWatchlist(); } : undefined}
-                onRemoveFromWatchlist={selectedMarket ? async () => { await polymarketWatchlistService.removeFromWatchlist(selectedMarket.id); await loadWatchlist(); } : undefined}
+                isInWatchlist={selectedMarket ? polymarketWatchlistService.isInAnyWatchlist(selectedMarket.id) : false}
+                onAddToWatchlist={selectedMarket ? async () => {
+                  const lists = polymarketWatchlistService.getAll();
+                  if (lists.length === 0) polymarketWatchlistService.create('Default');
+                  const all = polymarketWatchlistService.getAll();
+                  if (all.length === 1) {
+                    polymarketWatchlistService.addToWatchlist(selectedMarket, all[0].id);
+                  } else {
+                    const name = prompt(`Add to watchlist:\n${all.map((w, i) => `${i + 1}. ${w.name}`).join('\n')}\n\nEnter number:`, '1');
+                    const idx = parseInt(name || '1', 10) - 1;
+                    if (idx >= 0 && idx < all.length) polymarketWatchlistService.addToWatchlist(selectedMarket, all[idx].id);
+                  }
+                  await loadWatchlist();
+                } : undefined}
+                onRemoveFromWatchlist={selectedMarket ? async () => { await polymarketWatchlistService.removeFromWatchlistLegacy(selectedMarket.id); await loadWatchlist(); } : undefined}
               />
             )}
           </div>
