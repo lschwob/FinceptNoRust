@@ -6,6 +6,7 @@ from app.api.routes.jobs import router as jobs_router
 from app.api.routes.polymarket_proxy import router as polymarket_proxy_router
 from app.api.routes.economic_calendar_proxy import router as economic_calendar_proxy_router
 from app.api.routes.dbnomics_proxy import router as dbnomics_proxy_router
+from app.api.routes.worldmonitor_proxy import router as worldmonitor_proxy_router
 from app.api.routes.runtime import router as runtime_router
 from app.api.routes.ws import router as ws_router
 
@@ -18,4 +19,5 @@ api_router.include_router(jobs_router, prefix="/api/v1/jobs", tags=["jobs"])
 api_router.include_router(polymarket_proxy_router, prefix="/api/v1")
 api_router.include_router(economic_calendar_proxy_router, prefix="/api/v1")
 api_router.include_router(dbnomics_proxy_router, prefix="/api/v1")
+api_router.include_router(worldmonitor_proxy_router, prefix="/api/v1")
 api_router.include_router(ws_router)
