@@ -51,6 +51,7 @@ import { NewsMapPanel } from './NewsMapPanel';
 import { NewsMonitorsSection } from './NewsMonitorsSection';
 import { LiveNewsPanel } from './LiveNewsPanel';
 import { notificationService } from '@/services/notifications';
+import WorldMonitorTab from './WorldMonitorTab';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESIGN TOKENS — Bloomberg-inspired dark terminal palette
@@ -291,11 +292,13 @@ const NewsTab: React.FC = () => {
   const [activeMonitorId, setActiveMonitorId] = useState<string | null>(null);
   const prevArticleIds = useRef<Set<string>>(new Set());
 
+  const [newsMode, setNewsMode] = useState<'terminal' | 'worldmonitor'>('terminal');
+
   // ── Workspace ──
   const getWorkspaceState = useCallback(() => ({
     activeFilter, feedCount, refreshInterval, searchQuery, timeRange,
-    viewMode, mapCollapsed, activeMonitorId, groupBySource,
-  }), [activeFilter, feedCount, refreshInterval, searchQuery, timeRange, viewMode, mapCollapsed, activeMonitorId, groupBySource]);
+    viewMode, mapCollapsed, activeMonitorId, groupBySource, newsMode,
+  }), [activeFilter, feedCount, refreshInterval, searchQuery, timeRange, viewMode, mapCollapsed, activeMonitorId, groupBySource, newsMode]);
   const setWorkspaceState = useCallback((s: Record<string, unknown>) => {
     if (typeof s.activeFilter === 'string') setActiveFilter(s.activeFilter);
     if (typeof s.feedCount === 'number') setFeedCount(s.feedCount);
@@ -307,6 +310,7 @@ const NewsTab: React.FC = () => {
     if (typeof s.groupBySource === 'boolean') setGroupBySource(s.groupBySource);
     if (s.activeMonitorId === null || typeof s.activeMonitorId === 'string')
       setActiveMonitorId(s.activeMonitorId as string | null);
+    if (s.newsMode === 'terminal' || s.newsMode === 'worldmonitor') setNewsMode(s.newsMode);
   }, []);
   useWorkspaceTabState('news', getWorkspaceState, setWorkspaceState);
 
@@ -502,7 +506,26 @@ const NewsTab: React.FC = () => {
           <Activity size={10} />NEWS
         </div>
 
-        {/* F-key filters */}
+        <div style={{ width: '1px', height: '14px', background: '#555', margin: '0 3px' }} />
+        <button onClick={() => setNewsMode('terminal')} style={{
+          padding: '3px 8px', fontSize: '10px', fontFamily: FONT,
+          backgroundColor: newsMode === 'terminal' ? '#ea580c' : 'transparent',
+          color: newsMode === 'terminal' ? '#fff' : '#d4d4d4',
+          border: 'none', fontWeight: newsMode === 'terminal' ? 700 : 400,
+          cursor: 'pointer', whiteSpace: 'nowrap',
+        }}>TERMINAL</button>
+        <button onClick={() => setNewsMode('worldmonitor')} style={{
+          padding: '3px 8px', fontSize: '10px', fontFamily: FONT,
+          backgroundColor: newsMode === 'worldmonitor' ? '#ea580c' : 'transparent',
+          color: newsMode === 'worldmonitor' ? '#fff' : '#d4d4d4',
+          border: 'none', fontWeight: newsMode === 'worldmonitor' ? 700 : 400,
+          cursor: 'pointer', whiteSpace: 'nowrap',
+        }}><Globe size={9} style={{ marginRight: '2px', verticalAlign: 'middle' }} />WORLD MONITOR</button>
+        <div style={{ width: '1px', height: '14px', background: '#555', margin: '0 3px' }} />
+
+        {/* F-key filters — terminal only */}
+        {newsMode === 'terminal' && (
+        <>
         {FKEYS.map(item => (
           <button key={item.k}
             onClick={() => setActiveFilter(activeFilter === item.f && item.f !== 'ALL' ? 'ALL' : item.f)}
@@ -575,6 +598,8 @@ const NewsTab: React.FC = () => {
         }}>
           <Globe size={9} />MAP
         </button>
+        </>
+        )}
 
         {/* Spacer → right controls */}
         <div style={{ flex: 1 }} />
@@ -649,8 +674,10 @@ const NewsTab: React.FC = () => {
         )}
       </div>
 
-      {/* ═══ BREAKING BANNER ═══ */}
-      {topBreaking && (
+      {newsMode === 'worldmonitor' && <WorldMonitorTab />}
+
+      {/* ═══ TERMINAL MODE: BREAKING BANNER + THREE-PANEL + STATUS BAR ═══ */}
+      {newsMode === 'terminal' && topBreaking && (
         <NewsBreakingBanner
           cluster={topBreaking}
           onDismiss={id => setDismissedBannerIds(prev => new Set([...prev, id]))}
@@ -658,6 +685,8 @@ const NewsTab: React.FC = () => {
         />
       )}
 
+      {newsMode === 'terminal' && (
+      <>
       {/* ═══ THREE-PANEL BODY ═══ */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
 
@@ -1027,6 +1056,8 @@ const NewsTab: React.FC = () => {
           <span style={{ color: loading ? C.YELLOW : C.GREEN, fontWeight: 700 }}>{loading ? '⟳ SYNC' : '● LIVE'}</span>
         </div>
       </div>
+      </>
+      )}
 
       <RSSFeedSettingsModal isOpen={showFeedSettings} onClose={() => setShowFeedSettings(false)} onFeedsUpdated={() => handleRefresh(true)} />
     </div>

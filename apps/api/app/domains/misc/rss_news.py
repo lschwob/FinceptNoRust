@@ -2,12 +2,15 @@
 RSS news fetcher — same behaviour as Rust (news.rs).
 Fetches from 80+ financial, geopolitical and real-time RSS feeds.
 Parses item/entry, strips HTML, parses dates, enriches with priority/sentiment/impact/category/tickers.
+Uses parallel fetch to speed up loading; failed feeds (DNS/404) are skipped without blocking others.
 """
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,7 +26,7 @@ def _feeds() -> list[dict[str, Any]]:
         {"id": "sec-press", "name": "SEC Press", "url": "https://www.sec.gov/news/pressreleases.rss", "category": "REGULATORY", "region": "US", "source": "SEC", "tier": 1},
         {"id": "fed-press", "name": "Federal Reserve", "url": "https://www.federalreserve.gov/feeds/press_all.xml", "category": "REGULATORY", "region": "US", "source": "FEDERAL RESERVE", "tier": 1},
         {"id": "un-news", "name": "UN News", "url": "https://news.un.org/feed/subscribe/en/news/all/rss.xml", "category": "GEOPOLITICS", "region": "GLOBAL", "source": "UN", "tier": 1},
-        {"id": "worldbank", "name": "World Bank Blogs", "url": "https://blogs.worldbank.org/en/psd/feed", "category": "ECONOMIC", "region": "GLOBAL", "source": "WORLD BANK", "tier": 1},
+        {"id": "worldbank", "name": "World Bank Blogs", "url": "https://blogs.worldbank.org/feed", "category": "ECONOMIC", "region": "GLOBAL", "source": "WORLD BANK", "tier": 1},
         {"id": "ecb-press", "name": "ECB Press", "url": "https://www.ecb.europa.eu/rss/press.html", "category": "REGULATORY", "region": "EU", "source": "ECB", "tier": 1},
         {"id": "cftc-press", "name": "CFTC Press", "url": "https://www.cftc.gov/RSS/RSSGP/rssgp.xml", "category": "REGULATORY", "region": "US", "source": "CFTC", "tier": 1},
         # Tier 2 — Major financial (no WSJ/Yahoo – 403/400; use alternatives)
@@ -47,7 +50,7 @@ def _feeds() -> list[dict[str, Any]]:
         {"id": "reuters-energy", "name": "Reuters Energy", "url": "https://feeds.apnews.com/rss/energy", "category": "ENERGY", "region": "GLOBAL", "source": "AP", "tier": 2},
         # Forex & macro
         {"id": "fxstreet", "name": "FXStreet", "url": "https://www.fxstreet.com/rss/news", "category": "MARKETS", "region": "GLOBAL", "source": "FXSTREET", "tier": 2},
-        {"id": "kitco", "name": "Kitco", "url": "https://www.kitco.com/rss/news", "category": "MARKETS", "region": "GLOBAL", "source": "KITCO", "tier": 2},
+        {"id": "mining", "name": "Mining.com", "url": "https://www.mining.com/feed/", "category": "MARKETS", "region": "GLOBAL", "source": "MINING.COM", "tier": 2},
         # Tech
         {"id": "techcrunch", "name": "TechCrunch", "url": "https://techcrunch.com/feed/", "category": "TECH", "region": "GLOBAL", "source": "TECHCRUNCH", "tier": 2},
         {"id": "wired", "name": "Wired", "url": "https://www.wired.com/feed/rss", "category": "TECH", "region": "US", "source": "WIRED", "tier": 2},
@@ -73,7 +76,8 @@ def _feeds() -> list[dict[str, Any]]:
     ]
 
 
-FETCH_TIMEOUT = 10.0
+FETCH_TIMEOUT = 8.0
+MAX_WORKERS = 24
 HEADERS = {
     "User-Agent": "FinceptTerminal/3.0",
     "Accept": "application/rss+xml, application/xml, text/xml, */*",
@@ -296,21 +300,41 @@ def _enrich_article(article: dict[str, Any]) -> None:
     article["tickers"] = found
 
 
+def _fetch_one_feed(feed: dict[str, Any]) -> list[dict[str, Any]]:
+    """Fetch a single feed; returns list of articles or [] on error. Each thread uses its own client."""
+    try:
+        with httpx.Client(
+            timeout=FETCH_TIMEOUT, follow_redirects=True, headers=HEADERS
+        ) as client:
+            resp = client.get(feed["url"])
+            resp.raise_for_status()
+            if resp.text.strip().startswith("<"):
+                return _parse_feed(resp.text, feed)
+    except (httpx.HTTPError, httpx.TimeoutException, OSError) as e:
+        logging.getLogger(__name__).warning(
+            "RSS feed %s failed: %s", feed.get("url"), e
+        )
+    return []
+
+
 def fetch_all_rss_articles_sync() -> list[dict[str, Any]]:
-    """Fetch all feeds and return merged articles sorted by sort_ts desc (same as Rust fetch_all_rss_news)."""
-    import logging
+    """Fetch all feeds in parallel and return merged articles sorted by sort_ts desc.
+    Failed feeds (DNS, 404, timeout) are skipped without blocking others; total time ~single timeout.
+    """
     feeds = _feeds()
     all_articles: list[dict[str, Any]] = []
-    with httpx.Client(timeout=FETCH_TIMEOUT, follow_redirects=True, headers=HEADERS) as client:
-        for feed in feeds:
+    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(feeds))) as executor:
+        futures = {executor.submit(_fetch_one_feed, f): f for f in feeds}
+        for future in as_completed(futures):
             try:
-                resp = client.get(feed["url"])
-                resp.raise_for_status()
-                if resp.text.strip().startswith("<"):
-                    items = _parse_feed(resp.text, feed)
+                items = future.result()
+                if items:
                     all_articles.extend(items)
-            except (httpx.HTTPError, httpx.TimeoutException) as e:
-                logging.getLogger(__name__).warning("RSS feed %s failed: %s", feed.get("url"), e)
+            except Exception as e:
+                feed = futures[future]
+                logging.getLogger(__name__).warning(
+                    "RSS feed %s failed: %s", feed.get("url"), e
+                )
     all_articles.sort(key=lambda a: a.get("sort_ts") or 0, reverse=True)
     return all_articles
 
